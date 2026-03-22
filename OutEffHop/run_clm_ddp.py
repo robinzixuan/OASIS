@@ -49,6 +49,7 @@ from transformers_language.models.opt_attention import (
     AttentionGateType,
     OPTAttentionWithExtras,
 )
+from transformers_language.models.llama_attention import LlamaAttentionWithExtras, LlamaDecoderLayerExtra
 from transformers_language.models.softmax import SOFTMAX_MAPPING
 from transformers_language.utils import count_params, kurtosis
 from socket import gethostname
@@ -91,6 +92,88 @@ def attach_tb_act_hooks(model):
     for name, module in model.named_modules():
         module.register_forward_hook(_make_hook(name))
     return act_dict
+
+
+def get_decoder_components(model):
+    base_model = model.model
+    if hasattr(base_model, "decoder") and hasattr(base_model.decoder, "layers"):
+        decoder = base_model.decoder
+        return {
+            "arch": "opt",
+            "decoder": decoder,
+            "layers": decoder.layers,
+            "embed_modules": [decoder.embed_tokens, decoder.embed_positions],
+            "final_norm": decoder.final_layer_norm,
+            "act_keys": lambda n: [
+                "model.decoder.final_layer_norm",
+                *[f"model.decoder.layers.{j}" for j in range(n)],
+                *[f"model.decoder.layers.{j}.fc2" for j in range(n)],
+                *[f"model.decoder.layers.{j}.final_layer_norm" for j in range(n)],
+                *[f"model.decoder.layers.{j}.self_attn.out_proj" for j in range(n)],
+                *[f"model.decoder.layers.{j}.self_attn_layer_norm" for j in range(n)],
+            ],
+        }
+
+    if hasattr(base_model, "layers"):
+        return {
+            "arch": "llama",
+            "decoder": base_model,
+            "layers": base_model.layers,
+            "embed_modules": [base_model.embed_tokens],
+            "final_norm": base_model.norm,
+            "act_keys": lambda n: [
+                "model.norm",
+                *[f"model.layers.{j}" for j in range(n)],
+                *[f"model.layers.{j}.mlp" for j in range(n)],
+                *[f"model.layers.{j}.post_attention_layernorm" for j in range(n)],
+                *[f"model.layers.{j}.self_attn.o_proj" for j in range(n)],
+                *[f"model.layers.{j}.input_layernorm" for j in range(n)],
+            ],
+        }
+
+    raise ValueError(f"Unsupported causal LM backbone for custom attention: {type(base_model)}")
+
+
+def replace_attention_modules(model, args):
+    decoder_info = get_decoder_components(model)
+
+    for layer_idx, layer in enumerate(decoder_info["layers"]):
+        old_attn = layer.self_attn
+        if decoder_info["arch"] == "opt":
+            new_attn = OPTAttentionWithExtras(
+                embed_dim=old_attn.embed_dim,
+                num_heads=old_attn.num_heads,
+                dropout=old_attn.dropout,
+                is_decoder=old_attn.is_decoder,
+                bias=True,
+                softmax_fn=SOFTMAX_MAPPING[args.attn_softmax],
+                alpha=args.alpha,
+                max_seq_length=args.block_size,
+                skip_attn=args.skip_attn,
+                attn_gate_type=AttentionGateType[args.attn_gate_type],
+                attn_gate_init=args.attn_gate_init,
+                attn_gate_mlp=args.attn_gate_mlp,
+                attn_gate_mlp2=args.attn_gate_mlp2,
+                attn_gate_linear_all_features=args.attn_gate_linear_all_features,
+                fine_tuning=args.fine_tuning,
+                attn_softmax=args.attn_softmax,
+            )
+        else:
+            new_attn = LlamaAttentionWithExtras(
+                config=model.config,
+                layer_idx=layer_idx,
+                softmax_fn=SOFTMAX_MAPPING[args.attn_softmax],
+            )
+
+        missing_keys, unexpected_keys = new_attn.load_state_dict(old_attn.state_dict(), strict=False)
+        if missing_keys or unexpected_keys:
+            logger.warning(
+                f"Attention replacement for layer {layer_idx} had non-strict state loading. "
+                f"Missing={missing_keys}, unexpected={unexpected_keys}"
+            )
+        layer.self_attn = new_attn
+
+    return decoder_info
 
 
 def main():
@@ -215,31 +298,7 @@ def main():
         logger.info("Training new model from scratch")
         model = AutoModelForCausalLM.from_config(config)
 
-    # >> replace self-attention module with ours
-    # NOTE: currently assumes OPT
-    for layer_idx in range(len(model.model.decoder.layers)):
-        old_attn = model.model.decoder.layers[layer_idx].self_attn
-        model.model.decoder.layers[layer_idx].self_attn = OPTAttentionWithExtras(
-            embed_dim=old_attn.embed_dim,
-            num_heads=old_attn.num_heads,
-            dropout=old_attn.dropout,
-            is_decoder=old_attn.is_decoder,
-            bias=True,
-            # new
-            softmax_fn=SOFTMAX_MAPPING[args.attn_softmax],
-            alpha=args.alpha,
-            max_seq_length=args.block_size,
-            skip_attn=args.skip_attn,
-            attn_gate_type=AttentionGateType[args.attn_gate_type],
-            attn_gate_init=args.attn_gate_init,
-            attn_gate_mlp=args.attn_gate_mlp,
-            attn_gate_mlp2=args.attn_gate_mlp2,
-            attn_gate_linear_all_features=args.attn_gate_linear_all_features,
-            fine_tuning=args.fine_tuning,
-        )
-        
-            
-        
+    decoder_info = replace_attention_modules(model, args)
 
     # We resize the embeddings only when necessary to avoid index errors. If you are creating a model from scratch
     # on a small vocab and want a smaller embedding size, remove this test.
@@ -252,12 +311,8 @@ def main():
     logger.info(model)
 
     # Display num params
-    n_embeddings = count_params(model.model.decoder.embed_tokens) + count_params(
-        model.model.decoder.embed_positions
-    )
-    n_decoder = count_params(model.model.decoder.layers) + count_params(
-        model.model.decoder.final_layer_norm
-    )
+    n_embeddings = sum(count_params(module) for module in decoder_info["embed_modules"])
+    n_decoder = count_params(decoder_info["layers"]) + count_params(decoder_info["final_norm"])
     n_head = count_params(model.lm_head)
     logger.info(
         f"\nNumber of parameters:\n"
@@ -274,7 +329,7 @@ def main():
     # In distributed training, the load_dataset function guarantee that only one local process can
     # concurrently download the dataset.
     tokenized_book_wiki_path = (
-        Path(args.data_cache_dir) / f"tokenized_book_wiki_OPT_{args.block_size}"
+        Path(args.data_cache_dir) / f"tokenized_book_wiki_{config.model_type.upper()}_{args.block_size}"
     )
     if dataset_setup == DatasetSetups.bookcorpus_and_wiki and tokenized_book_wiki_path.exists():
         accelerator.print(f"Loading tokenized dataset from {str(tokenized_book_wiki_path)}")
@@ -564,7 +619,8 @@ def main():
     if args.with_tracking and args.extra_tb_stats:
         act_dict = attach_tb_act_hooks(model)
 
-    num_layers = len(model.module.model.decoder.layers)
+    decoder_info = get_decoder_components(model.module)
+    num_layers = len(decoder_info["layers"])
 
     # ** Training loop **
     for epoch in range(starting_epoch, args.num_train_epochs):
@@ -709,14 +765,7 @@ def main():
 
         act_dict_eval = attach_act_hooks_for_eval(model)
 
-        ACT_KEYS = [
-            "model.decoder.final_layer_norm",
-            *[f"model.decoder.layers.{j}" for j in range(num_layers)],
-            *[f"model.decoder.layers.{j}.fc2" for j in range(num_layers)],
-            *[f"model.decoder.layers.{j}.final_layer_norm" for j in range(num_layers)],
-            *[f"model.decoder.layers.{j}.self_attn.out_proj" for j in range(num_layers)],
-            *[f"model.decoder.layers.{j}.self_attn_layer_norm" for j in range(num_layers)],
-        ]
+        ACT_KEYS = decoder_info["act_keys"](num_layers)
 
         act_inf_norms = OrderedDict()
         act_kurtoses = OrderedDict()
