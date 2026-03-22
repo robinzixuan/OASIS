@@ -70,7 +70,7 @@ class OPTAttentionWithExtras(nn.Module):
         if self.alpha is not None:
             assert self.max_seq_length is not None
             gamma = -self.alpha / self.max_seq_length
-            if self.attn_softmax is "softmax1":
+            if self.attn_softmax == "softmax1":
                 print("Using clipped Softmax_1!")
                 self.softmax_fn = partial(clipped_softmax1, gamma=gamma, eta=1.0)
             else:
