@@ -161,7 +161,7 @@ def replace_attention_modules(model, args):
             )            
             layer.self_attn = new_attn
         else:
-            new_layer = LlamaAttentionWithExtras(
+            new_layer = LlamaDecoderLayerExtra(
                 config=model.config,
                 layer_idx=layer_idx,
                 softmax_fn=SOFTMAX_MAPPING[args.attn_softmax],

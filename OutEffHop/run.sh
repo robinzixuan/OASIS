@@ -5,7 +5,8 @@ module load gcc/9.2.0
 conda init bash
 source ~/.bashrc
 module load cuda/cuda-12.1.0-openmpi-4.1.4
-export HF_HOME="/projects/p32013/.cache/" create -n retnet python=3.9
+export HF_HOME="/projects/p32013/.cache/" 
+
 
 conda activate outlier
 
@@ -32,7 +33,7 @@ accelerate launch --config_file accelerate_configs/2gpu_fp16.yaml run_clm_ddp.py
 --model_type llama \
 --tokenizer_name meta-llama/Llama-3.2-1B \
 --max_seq_length 2048 \
---block_size 512 \
+--block_size 1024 \
 --learning_rate 0.0004 \
 --lr_scheduler_type linear \
 --max_train_steps 100000 \
