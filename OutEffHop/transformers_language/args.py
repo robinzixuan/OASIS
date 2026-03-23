@@ -350,6 +350,13 @@ def parse_args():
         choices=SOFTMAX_MAPPING.keys(),
     )
     parser.add_argument(
+        "--attn_res_softmax_fn",
+        type=str,
+        default="vanilla",
+        help="Softmax variation to use in attention module.",
+        choices=SOFTMAX_MAPPING.keys(),
+    )
+    parser.add_argument(
         "--alpha",
         type=float,
         default=None,
