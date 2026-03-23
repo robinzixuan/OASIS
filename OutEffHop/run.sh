@@ -1,24 +1,16 @@
-module purge
-module load python-miniconda3/4.12.0
-module load moose/1.0.0
-module load gcc/9.2.0
-conda init bash
-source ~/.bashrc
-module load cuda/cuda-12.1.0-openmpi-4.1.4
+module load cuda/12.6.2-gcc-12.4.0
 export HF_HOME="/projects/p32013/.cache/" 
 
 
-conda activate outlier
-
+source ~/.bashrc && conda activate outlier && which python && python -V
 
 
 
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
-export PYTHONPATH=${PYTHONPATH}:$(realpath "$PWD")
+export CUDA_HOME=/software/cuda/cuda-12.1.0 
 
-# Vanilla
-accelerate launch --config_file accelerate_configs/2gpu_fp16.yaml run_clm_ddp.py \
+~/.conda/envs/outlier/bin/python -m accelerate.commands.launch --config_file accelerate_configs/2gpu_fp16.yaml run_clm_ddp.py \
 --pad_to_max_length \
 --wd_LN_gamma \
 --with_tracking \
