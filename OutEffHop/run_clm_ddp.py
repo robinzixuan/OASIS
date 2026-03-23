@@ -139,6 +139,7 @@ def replace_attention_modules(model, args):
 
     for layer_idx, layer in enumerate(decoder_info["layers"]):
         old_attn = layer.self_attn
+        old_layer = layer
         if decoder_info["arch"] == "opt":
             new_attn = OPTAttentionWithExtras(
                 embed_dim=old_attn.embed_dim,
@@ -157,21 +158,17 @@ def replace_attention_modules(model, args):
                 attn_gate_linear_all_features=args.attn_gate_linear_all_features,
                 fine_tuning=args.fine_tuning,
                 attn_softmax=args.attn_softmax,
-            )
+            )            
+            layer.self_attn = new_attn
         else:
-            new_attn = LlamaAttentionWithExtras(
+            new_layer = LlamaAttentionWithExtras(
                 config=model.config,
                 layer_idx=layer_idx,
                 softmax_fn=SOFTMAX_MAPPING[args.attn_softmax],
+                attn_res_softmax_fn=SOFTMAX_MAPPING[args.attn_res_softmax_fn],
             )
-
-        missing_keys, unexpected_keys = new_attn.load_state_dict(old_attn.state_dict(), strict=False)
-        if missing_keys or unexpected_keys:
-            logger.warning(
-                f"Attention replacement for layer {layer_idx} had non-strict state loading. "
-                f"Missing={missing_keys}, unexpected={unexpected_keys}"
-            )
-        layer.self_attn = new_attn
+            layer = new_layer
+        
 
     return decoder_info
 
