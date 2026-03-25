@@ -2,13 +2,12 @@ import torch
 import torch.nn as nn
 from einops import rearrange
 from torch import Tensor, finfo, zeros, ones
-from torch.nn import scaled_dot_product_attention
-from typing import Optional
+from typing import Optional, Tuple
 from math import sqrt
 from torch.backends.cuda import sdp_kernel
 from torch.nn.functional import pad, scaled_dot_product_attention
 from collections import namedtuple
-from torch.device import device_obj
+from torch import device as device_obj
 from torch import bool as torch_bool
 from torch.cuda import is_available, get_device_properties
 

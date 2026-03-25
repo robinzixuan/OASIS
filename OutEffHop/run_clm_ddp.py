@@ -174,12 +174,12 @@ def replace_attention_modules(model, args):
 
 
 def main():
-    rank          = int(os.environ["SLURM_PROCID"])
-    world_size    = int(os.environ["WORLD_SIZE"])
-    gpus_per_node = int(os.environ["SLURM_GPUS_ON_NODE"])
-    assert gpus_per_node == torch.cuda.device_count()
-    print(f"Hello from rank {rank} of {world_size} on {gethostname()} where there are" \
-        f" {gpus_per_node} allocated GPUs per node.", flush=True)
+    # rank          = int(os.environ["SLURM_PROCID"])
+    # world_size    = int(os.environ["WORLD_SIZE"])
+    # gpus_per_node = int(os.environ["SLURM_GPUS_ON_NODE"])
+    # assert gpus_per_node == torch.cuda.device_count()
+    # print(f"Hello from rank {rank} of {world_size} on {gethostname()} where there are" \
+    #     f" {gpus_per_node} allocated GPUs per node.", flush=True)
     
     args = parse_args()
 
@@ -363,7 +363,7 @@ def main():
 
         elif dataset_setup == DatasetSetups.bookcorpus_and_wiki:
             bookcorpus = load_dataset(
-                "bookcorpus", cache_dir=args.data_cache_dir, split=train_split
+                "rojagtap/bookcorpus", cache_dir=args.data_cache_dir, split=train_split
             )
 
             wiki_train = load_dataset(
@@ -616,7 +616,7 @@ def main():
     if args.with_tracking and args.extra_tb_stats:
         act_dict = attach_tb_act_hooks(model)
 
-    decoder_info = get_decoder_components(model.module)
+    decoder_info = get_decoder_components(model)
     num_layers = len(decoder_info["layers"])
 
     # ** Training loop **
@@ -705,7 +705,7 @@ def main():
                     and completed_steps % args.tb_scalar_log_interval == 0
                 ):
                     # weights inf-norm
-                    for name, module in model.module.named_modules():
+                    for name, module in model.named_modules():
                         if hasattr(module, "weight"):
                             w = module.weight
                             w_inf_norm = max(w.max().item(), -w.min().item())
@@ -728,7 +728,7 @@ def main():
                     #tb_writer = accelerator.trackers[0].writer
 
                     # weight histograms
-                    for name, module in model.module.named_modules():
+                    for name, module in model.named_modules():
                         if hasattr(module, "weight"):
                             w = module.weight
                             try:

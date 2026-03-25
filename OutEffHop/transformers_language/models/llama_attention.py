@@ -21,8 +21,6 @@ from transformers.modeling_layers import (
     GradientCheckpointingLayer,
 )
 from transformers.cache_utils import Cache, DynamicCache
-from transformers.utils.generic import maybe_autocast, merge_with_config_defaults
-from transformers.utils.output_capturing import capture_outputs
 
 from transformers.modeling_outputs import (
     BaseModelOutputWithPast,
@@ -38,7 +36,7 @@ def eager_attention_forward(
     query: torch.Tensor,
     key: torch.Tensor,
     value: torch.Tensor,
-    attention_mask: torch.Tensor | None,
+    attention_mask: Optional[torch.Tensor],
     scaling: float,
     dropout: float = 0.0,
     softmax_fn: Callable = nn.functional.softmax,
@@ -88,9 +86,9 @@ class LlamaAttentionWithExtras(nn.Module):
     def forward(
         self,
         hidden_states: torch.Tensor,
-        position_embeddings: tuple[torch.Tensor, torch.Tensor] | None = None,
-        attention_mask: torch.Tensor | None = None,
-        past_key_values: Cache | None = None,
+        position_embeddings: Optional[tuple[torch.Tensor, torch.Tensor]] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        past_key_values: Optional[Cache] = None,
         **kwargs: Unpack[TransformersKwargs],
     ) -> tuple[torch.Tensor, torch.Tensor]:
         input_shape = hidden_states.shape[:-1]
@@ -231,12 +229,12 @@ class LlamaDecoderLayerExtra(GradientCheckpointingLayer):
     def forward(
         self,
         hidden_states: torch.Tensor,
-        attention_mask: torch.Tensor | None = None,
-        position_ids: torch.LongTensor | None = None,
-        past_key_values: Cache | None = None,
-        use_cache: bool | None = False,
-        position_embeddings: tuple[torch.Tensor, torch.Tensor] | None = None,
-        layer_outputs_history: List[torch.Tensor] | None = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.LongTensor] = None,
+        past_key_values: Optional[Cache] = None,
+        use_cache: Optional[bool] = False,
+        position_embeddings: Optional[tuple[torch.Tensor, torch.Tensor]] = None,
+        layer_outputs_history: Optional[List[torch.Tensor]] = None,
         **kwargs: Unpack[TransformersKwargs],
     ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
         """Forward pass with Attention Residual aggregation.
