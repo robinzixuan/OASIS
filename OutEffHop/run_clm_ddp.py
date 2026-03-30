@@ -50,6 +50,7 @@ from transformers_language.models.opt_attention import (
     OPTAttentionWithExtras,
 )
 from transformers_language.models.llama_attention import LlamaAttentionWithExtras, LlamaDecoderLayerExtra
+from transformers_language.models.qwen_attention import Qwen3AttentionWithExtras, Qwen3DecoderLayerExtra
 from transformers_language.models.softmax import SOFTMAX_MAPPING
 from transformers_language.utils import count_params, kurtosis
 from socket import gethostname
@@ -115,8 +116,9 @@ def get_decoder_components(model):
         }
 
     if hasattr(base_model, "layers"):
+        arch = "qwen" if getattr(model.config, "model_type", "") == "qwen3" else "llama"
         return {
-            "arch": "llama",
+            "arch": arch,
             "decoder": base_model,
             "layers": base_model.layers,
             "embed_modules": [base_model.embed_tokens],
@@ -160,6 +162,14 @@ def replace_attention_modules(model, args):
                 attn_softmax=args.attn_softmax,
             )            
             layer.self_attn = new_attn
+        elif decoder_info["arch"] == "qwen":
+            new_layer = Qwen3DecoderLayerExtra(
+                config=model.config,
+                layer_idx=layer_idx,
+                softmax_fn=SOFTMAX_MAPPING[args.attn_softmax],
+                attn_res_softmax_fn=SOFTMAX_MAPPING[args.attn_res_softmax_fn],
+            )
+            decoder_info["layers"][layer_idx] = new_layer
         else:
             new_layer = LlamaDecoderLayerExtra(
                 config=model.config,
@@ -167,7 +177,7 @@ def replace_attention_modules(model, args):
                 softmax_fn=SOFTMAX_MAPPING[args.attn_softmax],
                 attn_res_softmax_fn=SOFTMAX_MAPPING[args.attn_res_softmax_fn],
             )
-            layer = new_layer
+            decoder_info["layers"][layer_idx] = new_layer
         
 
     return decoder_info

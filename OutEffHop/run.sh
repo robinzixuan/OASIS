@@ -1,6 +1,6 @@
 #!/bin/bash
 module load cuda/12.6.2-gcc-12.4.0
-export HF_HOME="/projects/p32013/.cache/" 
+export HF_HOME="/scratch/hlv8980/.cache/" 
 export WANDB_PROJECT="residual"
 export WANDB_ENABLED="true"
 
@@ -16,13 +16,14 @@ export CUDA_HOME=/software/cuda/cuda-12.1.0
 # echo "WORLD_SIZE="$WORLD_SIZE
 
 
+export PYTHONNOUSERSITE=1
 export CUDA_VISIBLE_DEVICES=1
 ~/.conda/envs/outlier/bin/python -m accelerate.commands.launch --config_file accelerate_configs/1gpu_fp16.yaml run_clm_ddp.py \
 --pad_to_max_length \
 --wd_LN_gamma \
 --with_tracking \
 --report_to wandb \
---run_name test_softmax1_llama3_1b \
+--run_name test_vanilla_llama3_1b \
 --extra_tb_stats \
 --seed 1000 \
 --dataset_setup bookcorpus_and_wiki \
@@ -46,7 +47,7 @@ export CUDA_VISIBLE_DEVICES=1
 --tb_scalar_log_interval 10000 \
 --tb_hist_log_interval 20000 \
 --model_name_or_path meta-llama/Llama-3.2-1B \
---attn_softmax softmax1 \
---attn_res_softmax_fn softmax1 \
---output_dir /scratch/hlv8980/residual/output/softmax1_llama3 \
---resume_from_checkpoint /scratch/hlv8980/residual/output/softmax1_llama3/checkpoints/checkpoint_35000
+--attn_softmax vanilla \
+--attn_res_softmax_fn vanilla \
+--output_dir /scratch/hlv8980/residual/output/vanilla_llama3 \
+--resume_from_checkpoint /scratch/hlv8980/residual/output/vanilla_llama3/checkpoints/checkpoint_80000

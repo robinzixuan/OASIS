@@ -38,7 +38,11 @@ from transformers_language.models.opt_attention import (
     AttentionGateType,
     OPTAttentionWithExtras,
 )
+from transformers_language.models.llama_attention import LlamaAttentionWithExtras, LlamaDecoderLayerExtra
+from transformers_language.models.qwen_attention import Qwen3AttentionWithExtras, Qwen3DecoderLayerExtra
 from transformers_language.models.quantized_opt import QuantizedOPTForCausalLM
+from transformers_language.models.quantized_llama import QuantizedLlamaForCausalLM
+from transformers_language.models.quantized_qwen import QuantizedQwen3ForCausalLM
 from transformers_language.models.softmax import SOFTMAX_MAPPING
 from transformers_language.quant_configs import get_quant_config
 from transformers_language.utils import (
@@ -47,6 +51,7 @@ from transformers_language.utils import (
     pass_data_for_range_estimation,
     val_qparams,
 )
+from run_clm_ddp import get_decoder_components, replace_attention_modules
 
 logger = logging.getLogger("validate_clm")
 logging.basicConfig(
@@ -142,33 +147,11 @@ def main():
         logger.info("Training new model from scratch")
         model = AutoModelForCausalLM.from_config(config)
 
-    # >> replace self-attention module with ours
-    # NOTE: currently assumes OPT
-    for layer_idx in range(len(model.model.decoder.layers)):
-        old_attn = model.model.decoder.layers[layer_idx].self_attn
-        new_attn = OPTAttentionWithExtras(
-            embed_dim=old_attn.embed_dim,
-            num_heads=old_attn.num_heads,
-            dropout=old_attn.dropout,
-            is_decoder=old_attn.is_decoder,
-            bias=True,
-            # new
-            softmax_fn=SOFTMAX_MAPPING[args.attn_softmax],
-            alpha=args.alpha,
-            max_seq_length=args.block_size,
-            skip_attn=args.skip_attn,
-            attn_gate_type=AttentionGateType[args.attn_gate_type],
-            attn_gate_init=args.attn_gate_init,
-            attn_gate_mlp=args.attn_gate_mlp,
-            attn_gate_mlp2=args.attn_gate_mlp2,
-            attn_gate_linear_all_features=args.attn_gate_linear_all_features,
-        )
-        # copy loaded weights
-        new_attn.load_state_dict(old_attn.state_dict(), strict=False)
-        model.model.decoder.layers[layer_idx].self_attn = new_attn
+    # >> replace self-attention module with ours (supports OPT, Llama, Qwen)
+    decoder_info = replace_attention_modules(model, args)
 
-    # Gating -> load the model again to load missing alpha
-    if args.attn_gate_type != "none":
+    # Gating -> load the model again to load missing alpha (OPT only)
+    if decoder_info["arch"] == "opt" and args.attn_gate_type != "none":
         state_dict = torch.load(str(Path(args.model_name_or_path) / "pytorch_model.bin"))
         new_state_dict = {}
         for name, val in state_dict.items():
@@ -181,10 +164,8 @@ def main():
     logger.info(model)
 
     # Display num params
-    n_embeddings = count_params(model.model.decoder.embed_tokens) + count_params(
-        model.model.decoder.embed_positions
-    )
-    n_decoder = count_params(model.model.decoder) - n_embeddings
+    n_embeddings = sum(count_params(module) for module in decoder_info["embed_modules"])
+    n_decoder = count_params(decoder_info["layers"]) + count_params(decoder_info["final_norm"])
     n_head = count_params(model.lm_head)
     logger.info(
         f"\nNumber of parameters:\n"
@@ -476,7 +457,12 @@ def main():
         qparams = val_qparams(click_config)
         qparams["quant_dict"] = {}
 
-        model = QuantizedOPTForCausalLM(model, **qparams)
+        if decoder_info["arch"] == "opt":
+            model = QuantizedOPTForCausalLM(model, **qparams)
+        elif decoder_info["arch"] == "qwen":
+            model = QuantizedQwen3ForCausalLM(model, **qparams)
+        else:
+            model = QuantizedLlamaForCausalLM(model, **qparams)
         model.set_quant_state(
             weight_quant=click_config.quant.weight_quant, act_quant=click_config.quant.act_quant
         )
@@ -535,16 +521,9 @@ def main():
         act_dict = {}
     else:
         act_dict = attach_act_hooks(model)
-    num_layers = len(model.model.decoder.layers)
+    num_layers = len(decoder_info["layers"])
 
-    ACT_KEYS = [
-        "model.decoder.final_layer_norm",
-        *[f"model.decoder.layers.{j}" for j in range(num_layers)],
-        *[f"model.decoder.layers.{j}.fc2" for j in range(num_layers)],
-        *[f"model.decoder.layers.{j}.final_layer_norm" for j in range(num_layers)],
-        *[f"model.decoder.layers.{j}.self_attn.out_proj" for j in range(num_layers)],
-        *[f"model.decoder.layers.{j}.self_attn_layer_norm" for j in range(num_layers)],
-    ]
+    ACT_KEYS = decoder_info["act_keys"](num_layers)
 
     act_inf_norms = OrderedDict()
     act_kurtoses = OrderedDict()
@@ -601,16 +580,27 @@ def main():
             metrics[name] = v.avg
 
         max_inf_norm = max(v.avg for v in act_inf_norms.values())
-        max_ffn_inf_norm = max(v.avg for k, v in act_inf_norms.items() if ".fc" in k)
-        max_layer_inf_norm = max(
-            act_inf_norms[f"model.decoder.layers.{j}"].avg for j in range(num_layers)
-        )
+
+        # FFN keys: ".fc" for OPT, ".mlp" for Llama/Qwen
+        ffn_pattern = ".fc" if decoder_info["arch"] == "opt" else ".mlp"
+        ffn_norms = [v.avg for k, v in act_inf_norms.items() if ffn_pattern in k]
+        max_ffn_inf_norm = max(ffn_norms) if ffn_norms else 0.0
+
+        # Layer keys: "model.decoder.layers.{j}" for OPT, "model.layers.{j}" for Llama/Qwen
+        layer_prefix = "model.decoder.layers" if decoder_info["arch"] == "opt" else "model.layers"
+        layer_inf_norms = [
+            act_inf_norms[f"{layer_prefix}.{j}"].avg
+            for j in range(num_layers) if f"{layer_prefix}.{j}" in act_inf_norms
+        ]
+        max_layer_inf_norm = max(layer_inf_norms) if layer_inf_norms else 0.0
 
         avg_kurtosis = sum(v.avg for v in act_kurtoses.values()) / len(act_kurtoses.values())
         max_kurtosis = max(v.avg for v in act_kurtoses.values())
-        max_kurtosis_layers = max(
-            act_kurtoses[f"model.decoder.layers.{j}"].avg for j in range(num_layers)
-        )
+        layer_kurtoses = [
+            act_kurtoses[f"{layer_prefix}.{j}"].avg
+            for j in range(num_layers) if f"{layer_prefix}.{j}" in act_kurtoses
+        ]
+        max_kurtosis_layers = max(layer_kurtoses) if layer_kurtoses else 0.0
 
         metrics["max_inf_norm"] = max_inf_norm
         metrics["max_ffn_inf_norm"] = max_ffn_inf_norm
