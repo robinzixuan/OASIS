@@ -50,11 +50,16 @@ def eager_attention_forward(
         attn_weights = attn_weights + attention_mask
 
     attn_weights = softmax_fn(attn_weights, dim=-1, dtype=torch.float32).to(query.dtype)
+
+    # OASIS: per-head null posterior = mass routed to null space (before dropout)
+    # For softmax_1: sum < 1, so null_posterior > 0; for standard softmax: sum = 1, null_posterior = 0
+    null_posterior = (1.0 - attn_weights.sum(dim=-1))  # (B, H, T)
+
     attn_weights = nn.functional.dropout(attn_weights, p=dropout, training=module.training)
     attn_output = torch.matmul(attn_weights, value_states)
     attn_output = attn_output.transpose(1, 2).contiguous()
 
-    return attn_output, attn_weights
+    return attn_output, attn_weights, null_posterior
 
 class LlamaAttentionWithExtras(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
@@ -90,7 +95,7 @@ class LlamaAttentionWithExtras(nn.Module):
         attention_mask: Optional[torch.Tensor] = None,
         past_key_values: Optional[Cache] = None,
         **kwargs: Unpack[TransformersKwargs],
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         input_shape = hidden_states.shape[:-1]
         hidden_shape = (*input_shape, -1, self.head_dim)
 
@@ -108,7 +113,7 @@ class LlamaAttentionWithExtras(nn.Module):
             self.config._attn_implementation, eager_attention_forward
         )
 
-        attn_output, attn_weights = attention_interface(
+        attn_output, attn_weights, null_posterior = attention_interface(
             self,
             query_states,
             key_states,
@@ -120,9 +125,13 @@ class LlamaAttentionWithExtras(nn.Module):
             **kwargs,
         )
 
+        # OASIS: branch-level null statistic ψ = mean across H heads
+        # null_posterior: (B, H, T) -> branch_null: (B, T)
+        branch_null = null_posterior.mean(dim=1)
+
         attn_output = attn_output.reshape(*input_shape, -1).contiguous()
         attn_output = self.o_proj(attn_output)
-        return attn_output, attn_weights
+        return attn_output, attn_weights, branch_null
 
 
 class AttentionResidual(nn.Module):
@@ -161,17 +170,25 @@ class AttentionResidual(nn.Module):
 
         self.attn_res_softmax_fn = attn_res_softmax_fn
 
+        # OASIS: learnable coupling strength β ≥ 0 (parameterized via softplus)
+        # Init to 0 so OASIS starts as a no-op
+        self.oasis_beta_raw = nn.Parameter(torch.zeros(1))
+
 
     def forward(
         self,
         layer_outputs: List[torch.Tensor],
+        null_posteriors: Optional[List[torch.Tensor]] = None,
     ) -> torch.Tensor:
-        """Aggregate all layer outputs using attention.
+        """Aggregate all layer outputs using attention with OASIS coupling.
 
         Args:
             layer_outputs: list of tensors each shaped (B, T, D), length = num_layers_so_far + 1.
                 The last element is the current layer's output; all preceding elements are
                 previous layers (starting with the embedding).
+            null_posteriors: list of tensors each shaped (B, T), same length as layer_outputs.
+                Branch-level null statistic ψ_{i,t} for each source branch.
+                If None, OASIS coupling is disabled.
 
         Returns:
             Aggregated hidden state of shape (B, T, D).
@@ -191,7 +208,7 @@ class AttentionResidual(nn.Module):
         query = self.q_proj(current)  # (B, T, attn_dim)
         keys = self.k_proj(stacked)   # (B, T, L, attn_dim)
 
-        # Layer-attention scores: (B, T, L)
+        # Layer-attention scores (depth routing logits g_old): (B, T, L)
         scores = torch.einsum("btd,btld->btl", query, keys) * self.layer_attn_scaling
 
         # Add recency bias: linearly increasing bias toward more recent layers
@@ -201,7 +218,17 @@ class AttentionResidual(nn.Module):
         recency = recency / max(num_layers - 1, 1)  # normalize to [0, 1]
         scores = scores + self.recency_bias * recency.unsqueeze(0).unsqueeze(0)
 
-        # Softmax over the layer dimension
+        # OASIS: token-to-depth null coupling
+        if null_posteriors is not None and len(null_posteriors) == num_layers:
+            beta = F.softplus(self.oasis_beta_raw)  # β ≥ 0
+            # Stack null posteriors: (B, T, L)
+            psi = torch.stack(null_posteriors, dim=-1)
+            # Center against mean of candidate branches: Δψ_{i→ℓ,t} = ψ_{i,t} - mean_r ψ_{r,t}
+            delta_psi = psi - psi.mean(dim=-1, keepdim=True)
+            # Score injection: g_new = g_old - β · Δψ
+            scores = scores - beta * delta_psi
+
+        # Depth-Softmax (or depth-Softmax₁ when attn_res_softmax_fn = softmax_1)
         weights = self.attn_res_softmax_fn(scores, dim=-1)  # (B, T, L)
 
         # Weighted sum: (B, T, D)
@@ -235,26 +262,29 @@ class LlamaDecoderLayerExtra(GradientCheckpointingLayer):
         use_cache: Optional[bool] = False,
         position_embeddings: Optional[tuple[torch.Tensor, torch.Tensor]] = None,
         layer_outputs_history: Optional[List[torch.Tensor]] = None,
+        null_posteriors_history: Optional[List[torch.Tensor]] = None,
         **kwargs: Unpack[TransformersKwargs],
     ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
-        """Forward pass with Attention Residual aggregation.
+        """Forward pass with Attention Residual aggregation and OASIS coupling.
 
         Args:
             hidden_states: current hidden state (B, T, D)
             layer_outputs_history: list of all previous sub-layer outputs for AttnRes aggregation.
                 If None, falls back to standard residual connections.
-            (other args same as before)
+            null_posteriors_history: list of (B, T) tensors, parallel to layer_outputs_history.
+                Branch-level null statistics ψ for OASIS coupling. The embedding entry uses zeros.
 
         Returns:
             hidden_states: output hidden state (B, T, D)
             layer_outputs_history: updated history including this layer's sub-layer outputs
+            null_posteriors_history: updated null posteriors history
         """
         use_attn_res = layer_outputs_history is not None
 
         # === Self Attention sub-layer ===
         residual = hidden_states
         hidden_states = self.input_layernorm(hidden_states)
-        hidden_states, _ = self.self_attn(
+        hidden_states, _, branch_null = self.self_attn(
             hidden_states=hidden_states,
             attention_mask=attention_mask,
             position_ids=position_ids,
@@ -265,10 +295,11 @@ class LlamaDecoderLayerExtra(GradientCheckpointingLayer):
         )
 
         if use_attn_res:
-            # The self-attn output is a new "layer output"; aggregate over all history
             sa_output = hidden_states
             history_plus_sa = layer_outputs_history + [residual + sa_output]
-            hidden_states = self.attn_res_sa(history_plus_sa)
+            # OASIS: extend null posteriors with this layer's branch null
+            null_plus_sa = null_posteriors_history + [branch_null]
+            hidden_states = self.attn_res_sa(history_plus_sa, null_posteriors=null_plus_sa)
         else:
             hidden_states = residual + hidden_states
 
@@ -280,16 +311,18 @@ class LlamaDecoderLayerExtra(GradientCheckpointingLayer):
         if use_attn_res:
             mlp_output = hidden_states
             history_plus_mlp = history_plus_sa + [residual + mlp_output]
-            hidden_states = self.attn_res_mlp(history_plus_mlp)
-            # Return updated history (we track the aggregated output as the "layer output"
-            # for downstream layers to attend to)
+            # OASIS: reuse same branch_null for MLP entry (MLP has no attention null)
+            null_plus_mlp = null_plus_sa + [branch_null]
+            hidden_states = self.attn_res_mlp(history_plus_mlp, null_posteriors=null_plus_mlp)
             updated_history = layer_outputs_history + [hidden_states]
+            updated_null_posteriors = null_posteriors_history + [branch_null]
         else:
             hidden_states = residual + hidden_states
             updated_history = None
+            updated_null_posteriors = None
 
         if use_attn_res:
-            return hidden_states, updated_history
+            return hidden_states, updated_history, updated_null_posteriors
         return hidden_states
 
 
