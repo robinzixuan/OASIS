@@ -49,7 +49,7 @@ from transformers_language.models.opt_attention import (
     AttentionGateType,
     OPTAttentionWithExtras,
 )
-from transformers_language.models.llama_attention import LlamaAttentionWithExtras, LlamaDecoderLayerExtra
+from transformers_language.models.llama_oasis_attention import LlamaAttentionWithExtras, LlamaDecoderLayerExtra
 from transformers_language.models.qwen_attention import Qwen3AttentionWithExtras, Qwen3DecoderLayerExtra
 from transformers_language.models.softmax import SOFTMAX_MAPPING
 from transformers_language.utils import count_params, kurtosis
@@ -177,10 +177,103 @@ def replace_attention_modules(model, args):
                 softmax_fn=SOFTMAX_MAPPING[args.attn_softmax],
                 attn_res_softmax_fn=SOFTMAX_MAPPING[args.attn_res_softmax_fn],
             )
+            # Copy pretrained weights from old layer
+            new_layer.self_attn.q_proj.load_state_dict(old_layer.self_attn.q_proj.state_dict())
+            new_layer.self_attn.k_proj.load_state_dict(old_layer.self_attn.k_proj.state_dict())
+            new_layer.self_attn.v_proj.load_state_dict(old_layer.self_attn.v_proj.state_dict())
+            new_layer.self_attn.o_proj.load_state_dict(old_layer.self_attn.o_proj.state_dict())
+            new_layer.mlp.load_state_dict(old_layer.mlp.state_dict())
+            new_layer.input_layernorm.load_state_dict(old_layer.input_layernorm.state_dict())
+            new_layer.post_attention_layernorm.load_state_dict(old_layer.post_attention_layernorm.state_dict())
             decoder_info["layers"][layer_idx] = new_layer
         
 
     return decoder_info
+
+
+def patch_model_forward_for_oasis(model):
+    """Monkey-patch LlamaModel.forward to propagate layer_outputs_history
+    and null_posteriors_history through the decoder layer loop for OASIS."""
+    import types
+    from transformers.modeling_outputs import BaseModelOutputWithPast
+    from transformers.cache_utils import DynamicCache
+    from transformers.masking_utils import create_causal_mask
+
+    base_model = model.model  # LlamaModel inside LlamaForCausalLM
+
+    def patched_forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        position_ids=None,
+        past_key_values=None,
+        inputs_embeds=None,
+        cache_position=None,
+        use_cache=None,
+        **kwargs,
+    ):
+        if (input_ids is None) ^ (inputs_embeds is not None):
+            raise ValueError("You must specify exactly one of input_ids or inputs_embeds")
+
+        if inputs_embeds is None:
+            inputs_embeds = self.embed_tokens(input_ids)
+
+        if use_cache and past_key_values is None:
+            past_key_values = DynamicCache(config=self.config)
+
+        if cache_position is None:
+            past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
+            cache_position = torch.arange(
+                past_seen_tokens, past_seen_tokens + inputs_embeds.shape[1], device=inputs_embeds.device
+            )
+
+        if position_ids is None:
+            position_ids = cache_position.unsqueeze(0)
+
+        causal_mask = create_causal_mask(
+            config=self.config,
+            input_embeds=inputs_embeds,
+            attention_mask=attention_mask,
+            cache_position=cache_position,
+            past_key_values=past_key_values,
+            position_ids=position_ids,
+        )
+
+        hidden_states = inputs_embeds
+        position_embeddings = self.rotary_emb(hidden_states, position_ids)
+
+        # OASIS: initialize histories with the embedding as the first entry
+        B, T, _ = hidden_states.shape
+        layer_outputs_history = [hidden_states]
+        # Embedding has no attention null posterior -> zeros
+        null_posteriors_history = [torch.zeros(B, T, device=hidden_states.device, dtype=hidden_states.dtype)]
+
+        for decoder_layer in self.layers[: self.config.num_hidden_layers]:
+            result = decoder_layer(
+                hidden_states,
+                attention_mask=causal_mask,
+                position_ids=position_ids,
+                past_key_values=past_key_values,
+                cache_position=cache_position,
+                position_embeddings=position_embeddings,
+                layer_outputs_history=layer_outputs_history,
+                null_posteriors_history=null_posteriors_history,
+                **kwargs,
+            )
+            # LlamaDecoderLayerExtra returns (hidden_states, updated_history, updated_null_posteriors)
+            # when layer_outputs_history is not None
+            if isinstance(result, tuple):
+                hidden_states, layer_outputs_history, null_posteriors_history = result
+            else:
+                hidden_states = result
+
+        hidden_states = self.norm(hidden_states)
+        return BaseModelOutputWithPast(
+            last_hidden_state=hidden_states,
+            past_key_values=past_key_values,
+        )
+
+    base_model.forward = types.MethodType(patched_forward, base_model)
 
 
 def main():
@@ -306,6 +399,7 @@ def main():
         model = AutoModelForCausalLM.from_config(config)
 
     decoder_info = replace_attention_modules(model, args)
+    patch_model_forward_for_oasis(model)
 
     # We resize the embeddings only when necessary to avoid index errors. If you are creating a model from scratch
     # on a small vocab and want a smaller embedding size, remove this test.
@@ -600,22 +694,7 @@ def main():
     if args.resume_from_checkpoint:
         if args.resume_from_checkpoint is not None or args.resume_from_checkpoint != "":
             accelerator.print(f"Resumed from checkpoint: {args.resume_from_checkpoint}")
-            try:
-                accelerator.load_state(args.resume_from_checkpoint, strict=False)
-            except ValueError as e:
-                accelerator.print(f"Warning: could not fully load checkpoint ({e}). Loading model weights only.")
-                import safetensors.torch
-                import glob
-                ckpt_files = glob.glob(os.path.join(args.resume_from_checkpoint, "pytorch_model*.bin")) + \
-                             glob.glob(os.path.join(args.resume_from_checkpoint, "model*.safetensors"))
-                if ckpt_files:
-                    state_dict = {}
-                    for f in ckpt_files:
-                        if f.endswith(".safetensors"):
-                            state_dict.update(safetensors.torch.load_file(f))
-                        else:
-                            state_dict.update(torch.load(f, map_location="cpu"))
-                    model.load_state_dict(state_dict, strict=False)
+            accelerator.load_state(args.resume_from_checkpoint, strict=False)
             path = os.path.basename(args.resume_from_checkpoint)
         else:
             # Get the most recent checkpoint

@@ -40,7 +40,7 @@ def eager_attention_forward(
     scaling: float,
     dropout: float = 0.0,
     softmax_fn: Callable = nn.functional.softmax,
-    **kwargs: Unpack[TransformersKwargs],
+    **kwargs,
 ):
     key_states = repeat_kv(key, module.num_key_value_groups)
     value_states = repeat_kv(value, module.num_key_value_groups)
@@ -49,11 +49,16 @@ def eager_attention_forward(
     if attention_mask is not None:
         attn_weights = attn_weights + attention_mask
 
-    attn_weights = softmax_fn(attn_weights, dim=-1, dtype=torch.float32).to(query.dtype)
+    # Compute softmax in float32 for numerical stability (bfloat16 causes NaN)
+    attn_weights = softmax_fn(attn_weights.float(), dim=-1, dtype=torch.float32)
 
     # OASIS: per-head null posterior = mass routed to null space (before dropout)
     # For softmax_1: sum < 1, so null_posterior > 0; for standard softmax: sum = 1, null_posterior = 0
-    null_posterior = (1.0 - attn_weights.sum(dim=-1))  # (B, H, T)
+    null_posterior = (1.0 - attn_weights.sum(dim=-1)).clamp(min=0.0)  # (B, H, T)
+
+    # Cast null_posterior to model dtype to prevent float32 cascade
+    null_posterior = null_posterior.to(query.dtype)
+    attn_weights = attn_weights.to(query.dtype)
 
     attn_weights = nn.functional.dropout(attn_weights, p=dropout, training=module.training)
     attn_output = torch.matmul(attn_weights, value_states)
@@ -94,7 +99,7 @@ class LlamaAttentionWithExtras(nn.Module):
         position_embeddings: Optional[tuple[torch.Tensor, torch.Tensor]] = None,
         attention_mask: Optional[torch.Tensor] = None,
         past_key_values: Optional[Cache] = None,
-        **kwargs: Unpack[TransformersKwargs],
+        **kwargs,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         input_shape = hidden_states.shape[:-1]
         hidden_shape = (*input_shape, -1, self.head_dim)
@@ -109,11 +114,8 @@ class LlamaAttentionWithExtras(nn.Module):
         if past_key_values is not None:
             key_states, value_states = past_key_values.update(key_states, value_states, self.layer_idx)
 
-        attention_interface: Callable = ALL_ATTENTION_FUNCTIONS.get_interface(
-            self.config._attn_implementation, eager_attention_forward
-        )
-
-        attn_output, attn_weights, null_posterior = attention_interface(
+        # OASIS needs per-head attn weights for null posterior -> always eager
+        attn_output, attn_weights, null_posterior = eager_attention_forward(
             self,
             query_states,
             key_states,
@@ -122,10 +124,9 @@ class LlamaAttentionWithExtras(nn.Module):
             dropout=0.0 if not self.training else self.attention_dropout,
             scaling=self.scaling,
             softmax_fn=self.softmax_fn,
-            **kwargs,
         )
 
-        # OASIS: branch-level null statistic ψ = mean across H heads
+        # OASIS: branch-level null statistic psi = mean across H heads
         # null_posterior: (B, H, T) -> branch_null: (B, T)
         branch_null = null_posterior.mean(dim=1)
 
@@ -170,9 +171,9 @@ class AttentionResidual(nn.Module):
 
         self.attn_res_softmax_fn = attn_res_softmax_fn
 
-        # OASIS: learnable coupling strength β ≥ 0 (parameterized via softplus)
-        # Init to 0 so OASIS starts as a no-op
-        self.oasis_beta_raw = nn.Parameter(torch.zeros(1))
+        # OASIS: learnable coupling strength beta >= 0 (parameterized via softplus)
+        # Init raw to -5 so softplus(-5) ~ 0.007, making OASIS near no-op at start
+        self.oasis_beta_raw = nn.Parameter(torch.tensor([-5.0]))
 
 
     def forward(
@@ -187,7 +188,7 @@ class AttentionResidual(nn.Module):
                 The last element is the current layer's output; all preceding elements are
                 previous layers (starting with the embedding).
             null_posteriors: list of tensors each shaped (B, T), same length as layer_outputs.
-                Branch-level null statistic ψ_{i,t} for each source branch.
+                Branch-level null statistic psi_{i,t} for each source branch.
                 If None, OASIS coupling is disabled.
 
         Returns:
@@ -220,21 +221,25 @@ class AttentionResidual(nn.Module):
 
         # OASIS: token-to-depth null coupling
         if null_posteriors is not None and len(null_posteriors) == num_layers:
-            beta = F.softplus(self.oasis_beta_raw)  # β ≥ 0
+            beta = F.softplus(self.oasis_beta_raw).clamp(max=10.0)  # beta in [0, 10]
             # Stack null posteriors: (B, T, L)
             psi = torch.stack(null_posteriors, dim=-1)
-            # Center against mean of candidate branches: Δψ_{i→ℓ,t} = ψ_{i,t} - mean_r ψ_{r,t}
+            # Center against mean of candidate branches: delta_psi = psi - mean_r psi
             delta_psi = psi - psi.mean(dim=-1, keepdim=True)
-            # Score injection: g_new = g_old - β · Δψ
+            # Score injection: g_new = g_old - beta * delta_psi
             scores = scores - beta * delta_psi
 
-        # Depth-Softmax (or depth-Softmax₁ when attn_res_softmax_fn = softmax_1)
-        weights = self.attn_res_softmax_fn(scores, dim=-1)  # (B, T, L)
+        # Clamp scores to prevent extreme values before softmax
+        scores = scores.clamp(min=-50.0, max=50.0)
+
+        # Depth-Softmax (or depth-Softmax_1 when attn_res_softmax_fn = softmax_1)
+        weights = self.attn_res_softmax_fn(scores.float(), dim=-1, dtype=torch.float32)  # (B, T, L)
 
         # Weighted sum: (B, T, D)
         aggregated = torch.einsum("btl,btld->btd", weights, stacked)
 
-        return aggregated
+        # Cast back to model dtype to prevent float32 cascade through the network
+        return aggregated.to(stacked.dtype)
 
 
 class LlamaDecoderLayerExtra(GradientCheckpointingLayer):
@@ -263,7 +268,7 @@ class LlamaDecoderLayerExtra(GradientCheckpointingLayer):
         position_embeddings: Optional[tuple[torch.Tensor, torch.Tensor]] = None,
         layer_outputs_history: Optional[List[torch.Tensor]] = None,
         null_posteriors_history: Optional[List[torch.Tensor]] = None,
-        **kwargs: Unpack[TransformersKwargs],
+        **kwargs,
     ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
         """Forward pass with Attention Residual aggregation and OASIS coupling.
 
@@ -272,7 +277,7 @@ class LlamaDecoderLayerExtra(GradientCheckpointingLayer):
             layer_outputs_history: list of all previous sub-layer outputs for AttnRes aggregation.
                 If None, falls back to standard residual connections.
             null_posteriors_history: list of (B, T) tensors, parallel to layer_outputs_history.
-                Branch-level null statistics ψ for OASIS coupling. The embedding entry uses zeros.
+                Branch-level null statistics psi for OASIS coupling. The embedding entry uses zeros.
 
         Returns:
             hidden_states: output hidden state (B, T, D)
@@ -324,5 +329,3 @@ class LlamaDecoderLayerExtra(GradientCheckpointingLayer):
         if use_attn_res:
             return hidden_states, updated_history, updated_null_posteriors
         return hidden_states
-
-

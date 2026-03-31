@@ -49,7 +49,7 @@ export PYTHONNOUSERSITE=1
 # --output_dir /scratch/hlv8980/residual/output/vanilla_qwen3_0.6b
 
 
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=0
 ~/.conda/envs/outlier/bin/python -m accelerate.commands.launch --config_file accelerate_configs/1gpu_fp16.yaml run_clm_ddp.py \
 --pad_to_max_length \
 --wd_LN_gamma \
@@ -60,8 +60,8 @@ export CUDA_VISIBLE_DEVICES=1
 --seed 1000 \
 --dataset_setup bookcorpus_and_wiki \
 --preprocessing_num_workers 10 \
---data_cache_dir /scratch/hlv8980/residual/.hf_data \
---model_cache_dir /scratch/hlv8980/residual/.hf_cache \
+--data_cache_dir /scratch/hlv8980/residual/qwen/.hf_data \
+--model_cache_dir /scratch/hlv8980/residual/qwen/.hf_cache \
 --model_type qwen3 \
 --tokenizer_name Qwen/Qwen3-0.6B \
 --max_seq_length 2048 \
@@ -81,4 +81,5 @@ export CUDA_VISIBLE_DEVICES=1
 --model_name_or_path Qwen/Qwen3-0.6B \
 --attn_softmax softmax1 \
 --attn_res_softmax_fn softmax1 \
---output_dir /scratch/hlv8980/residual/output/softmax1_qwen3_0.6b
+--output_dir /scratch/hlv8980/residual/output/softmax1_qwen3_0.6b \
+--resume_from_checkpoint /scratch/hlv8980/residual/output/softmax1_qwen3_0.6b/checkpoints/checkpoint_15000
