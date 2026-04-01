@@ -50,7 +50,7 @@ from transformers_language.models.opt_attention import (
     OPTAttentionWithExtras,
 )
 from transformers_language.models.llama_oasis_attention import LlamaAttentionWithExtras, LlamaDecoderLayerExtra
-from transformers_language.models.qwen_attention import Qwen3AttentionWithExtras, Qwen3DecoderLayerExtra
+from transformers_language.models.qwen_oasis_attention import Qwen3AttentionWithExtras, Qwen3DecoderLayerExtra
 from transformers_language.models.softmax import SOFTMAX_MAPPING
 from transformers_language.utils import count_params, kurtosis
 from socket import gethostname
@@ -169,6 +169,16 @@ def replace_attention_modules(model, args):
                 softmax_fn=SOFTMAX_MAPPING[args.attn_softmax],
                 attn_res_softmax_fn=SOFTMAX_MAPPING[args.attn_res_softmax_fn],
             )
+            # Copy pretrained weights from old layer
+            new_layer.self_attn.q_proj.load_state_dict(old_layer.self_attn.q_proj.state_dict())
+            new_layer.self_attn.k_proj.load_state_dict(old_layer.self_attn.k_proj.state_dict())
+            new_layer.self_attn.v_proj.load_state_dict(old_layer.self_attn.v_proj.state_dict())
+            new_layer.self_attn.o_proj.load_state_dict(old_layer.self_attn.o_proj.state_dict())
+            new_layer.self_attn.q_norm.load_state_dict(old_layer.self_attn.q_norm.state_dict())
+            new_layer.self_attn.k_norm.load_state_dict(old_layer.self_attn.k_norm.state_dict())
+            new_layer.mlp.load_state_dict(old_layer.mlp.state_dict())
+            new_layer.input_layernorm.load_state_dict(old_layer.input_layernorm.state_dict())
+            new_layer.post_attention_layernorm.load_state_dict(old_layer.post_attention_layernorm.state_dict())
             decoder_info["layers"][layer_idx] = new_layer
         else:
             new_layer = LlamaDecoderLayerExtra(
