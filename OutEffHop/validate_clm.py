@@ -249,7 +249,7 @@ def main():
 
         elif dataset_setup == DatasetSetups.bookcorpus_and_wiki:
             bookcorpus = load_dataset(
-                "bookcorpus", cache_dir=args.data_cache_dir, split=train_split
+                "rojagtap/bookcorpus", cache_dir=args.data_cache_dir, split=train_split
             )
 
             wiki_train = load_dataset(

@@ -302,6 +302,7 @@ class QuantizedQwen3Model(QuantizedModel):
 class QuantizedQwen3ForCausalLM(QuantizedModel, PreTrainedModel):
     def __init__(self, org_model, quant_setup=None, **quant_params):
         self.config = org_model.config
+        self.config._attn_implementation = "eager"
         QuantizedModel()
         PreTrainedModel.__init__(self, self.config)
 

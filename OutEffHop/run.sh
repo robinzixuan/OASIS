@@ -87,15 +87,21 @@ export CUDA_VISIBLE_DEVICES=0
 
 
 ~/.conda/envs/outlier/bin/python -m accelerate.commands.launch --config_file accelerate_configs/1gpu_fp16.yaml validate_clm.py \
---seed 5678 \
+--quantize \
+--quant_setup fp32_head \
+--ranges_acts running_minmax \
+--qmethod_acts asymmetric_uniform \
+--percentile 99.999 \
+--est_num_batches 4 \
+--seed 6789 \
 --dataset_setup bookcorpus_and_wiki \
---preprocessing_num_workers 10 \
+--preprocessing_num_workers 16 \
 --model_type llama \
 --block_size 512 \
---per_device_eval_batch_size 16 \
+--per_device_eval_batch_size 4 \
 --attn_softmax vanilla \
 --attn_res_softmax_fn vanilla \
---data_cache_dir /scratch/hlv8980/residual/qwen/.hf_data  \
+--data_cache_dir /scratch/hlv8980/residual/qwen/.hf_data \
 --model_cache_dir /scratch/hlv8980/residual/qwen/.hf_cache \
---model_name_or_path /scratch/hlv8980/residual/output/vanilla_llama3 \
---output_dir output_metrics/vanilla_llama3
+--model_name_or_path /scratch/hlv8980/residual/output/vanilla_qwen3_0.6b/ \
+--output_dir  output_metrics/vanilla_qwen

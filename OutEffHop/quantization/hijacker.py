@@ -2,8 +2,15 @@
 import copy
 
 import torch
-from timm.models.layers import Swish
-from timm.models.layers.activations_me import SwishMe
+try:
+    from timm.models.layers import Swish
+    from timm.models.layers.activations_me import SwishMe
+except ImportError:
+    from timm.layers import Swish
+    try:
+        from timm.layers.activations_me import SwishMe
+    except ImportError:
+        SwishMe = Swish
 from torch import nn
 
 from quantization.base_quantized_classes import QuantizedModule
