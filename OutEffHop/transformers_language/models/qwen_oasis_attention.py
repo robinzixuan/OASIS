@@ -22,6 +22,25 @@ from transformers.masking_utils import create_causal_mask
 from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
 
 
+def _apply_softmax_fn(logits: torch.Tensor, softmax_fn: Callable, dim: int) -> torch.Tensor:
+    """Apply softmax in float32; only pass ``dtype`` when the backend supports it."""
+    logits = logits.float()
+    try:
+        return softmax_fn(logits, dim=dim, dtype=torch.float32)
+    except TypeError:
+        return softmax_fn(logits, dim=dim)
+
+
+def _renormalize_if_needed(probs: torch.Tensor, dim: int) -> torch.Tensor:
+    """Replace NaNs (e.g. all-masked row) with a uniform distribution on that dim."""
+    if torch.isfinite(probs).all():
+        return probs
+    uniform = torch.full_like(probs, 1.0 / probs.shape[dim])
+    out = torch.where(torch.isfinite(probs), probs, uniform)
+    row_sum = out.sum(dim=dim, keepdim=True).clamp_min(1e-8)
+    return out / row_sum
+
+
 def eager_attention_forward(
     module: nn.Module,
     query: torch.Tensor,
@@ -41,7 +60,8 @@ def eager_attention_forward(
         attn_weights = attn_weights + attention_mask
 
     # Compute softmax in float32 for numerical stability (bfloat16 causes NaN)
-    attn_weights = softmax_fn(attn_weights.float(), dim=-1, dtype=torch.float32)
+    attn_weights = _apply_softmax_fn(attn_weights, softmax_fn, dim=-1)
+    attn_weights = _renormalize_if_needed(attn_weights, dim=-1)
 
     # OASIS: per-head null posterior = mass routed to null space (before dropout)
     # For softmax_1: sum < 1, so null_posterior > 0; for standard softmax: sum = 1, null_posterior = 0
@@ -159,13 +179,22 @@ class AttentionResidual(nn.Module):
 
         self.layer_attn_scaling = self.attn_dim ** -0.5
 
-        self.recency_bias = nn.Parameter(torch.zeros(1))
+        # Sharpen toward the most recent branch (last index). Together with zero Q/K
+        # init below, depth-softmax approximates a standard residual at train start.
+        self.recency_bias = nn.Parameter(torch.tensor([8.0]))
 
         self.attn_res_softmax_fn = attn_res_softmax_fn
 
         # OASIS: learnable coupling strength beta >= 0 (parameterized via softplus)
         # Init raw to -5 so softplus(-5) ~ 0.007, making OASIS near no-op at start
         self.oasis_beta_raw = nn.Parameter(torch.tensor([-5.0]))
+
+        # Do NOT zero-init both Q and K: scores = q·k would be identically zero and
+        # gradients w.r.t. both layers would vanish (∂(q·k)/∂q ∝ k, ∂(q·k)/∂k ∝ q).
+        # Small random init + recency_bias keeps the last branch dominant at start.
+        _std = 0.02 / math.sqrt(float(self.attn_dim))
+        nn.init.normal_(self.q_proj.weight, std=_std)
+        nn.init.normal_(self.k_proj.weight, std=_std)
 
     def forward(
         self,
@@ -219,7 +248,8 @@ class AttentionResidual(nn.Module):
         scores = scores.clamp(min=-50.0, max=50.0)
 
         # Depth-Softmax (or depth-Softmax_1 when attn_res_softmax_fn = softmax_1)
-        weights = self.attn_res_softmax_fn(scores.float(), dim=-1, dtype=torch.float32)  # (B, T, L)
+        weights = _apply_softmax_fn(scores, self.attn_res_softmax_fn, dim=-1)  # (B, T, L)
+        weights = _renormalize_if_needed(weights, dim=-1)
 
         # Weighted sum: (B, T, D)
         aggregated = torch.einsum("btl,btld->btd", weights, stacked)

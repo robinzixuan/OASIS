@@ -202,88 +202,118 @@ def replace_attention_modules(model, args):
 
 
 def patch_model_forward_for_oasis(model):
-    """Monkey-patch LlamaModel.forward to propagate layer_outputs_history
-    and null_posteriors_history through the decoder layer loop for OASIS."""
-    import types
+    """Replace the base model's class with a subclass that propagates
+    layer_outputs_history and null_posteriors_history for OASIS.
+
+    Uses __class__ replacement instead of instance method binding to bypass
+    HuggingFace decorator wrapping that can prevent monkey-patches from working.
+
+    Supports both Llama (single causal_mask) and Qwen3 (causal_mask_mapping dict
+    with per-layer attention_type routing).
+    """
     from transformers.modeling_outputs import BaseModelOutputWithPast
     from transformers.cache_utils import DynamicCache
     from transformers.masking_utils import create_causal_mask
 
-    base_model = model.model  # LlamaModel inside LlamaForCausalLM
+    # Check if sliding window mask is needed (Qwen3)
+    try:
+        from transformers.masking_utils import create_sliding_window_causal_mask
+    except ImportError:
+        create_sliding_window_causal_mask = None
 
-    def patched_forward(
-        self,
-        input_ids=None,
-        attention_mask=None,
-        position_ids=None,
-        past_key_values=None,
-        inputs_embeds=None,
-        cache_position=None,
-        use_cache=None,
-        **kwargs,
-    ):
-        if (input_ids is None) ^ (inputs_embeds is not None):
-            raise ValueError("You must specify exactly one of input_ids or inputs_embeds")
+    base_model = model.model  # LlamaModel / Qwen3Model inside ForCausalLM
+    original_cls = base_model.__class__
+    is_qwen = hasattr(base_model, "has_sliding_layers")
 
-        if inputs_embeds is None:
-            inputs_embeds = self.embed_tokens(input_ids)
+    class OASISModelForward(original_cls):
+        def forward(
+            self,
+            input_ids=None,
+            attention_mask=None,
+            position_ids=None,
+            past_key_values=None,
+            inputs_embeds=None,
+            cache_position=None,
+            use_cache=None,
+            **kwargs,
+        ):
+            if (input_ids is None) ^ (inputs_embeds is not None):
+                raise ValueError("You must specify exactly one of input_ids or inputs_embeds")
 
-        if use_cache and past_key_values is None:
-            past_key_values = DynamicCache(config=self.config)
+            if inputs_embeds is None:
+                inputs_embeds = self.embed_tokens(input_ids)
 
-        if cache_position is None:
-            past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
-            cache_position = torch.arange(
-                past_seen_tokens, past_seen_tokens + inputs_embeds.shape[1], device=inputs_embeds.device
-            )
+            if use_cache and past_key_values is None:
+                past_key_values = DynamicCache(config=self.config)
 
-        if position_ids is None:
-            position_ids = cache_position.unsqueeze(0)
+            if cache_position is None:
+                past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
+                cache_position = torch.arange(
+                    past_seen_tokens, past_seen_tokens + inputs_embeds.shape[1], device=inputs_embeds.device
+                )
 
-        causal_mask = create_causal_mask(
-            config=self.config,
-            input_embeds=inputs_embeds,
-            attention_mask=attention_mask,
-            cache_position=cache_position,
-            past_key_values=past_key_values,
-            position_ids=position_ids,
-        )
+            if position_ids is None:
+                position_ids = cache_position.unsqueeze(0)
 
-        hidden_states = inputs_embeds
-        position_embeddings = self.rotary_emb(hidden_states, position_ids)
+            mask_kwargs = {
+                "config": self.config,
+                "input_embeds": inputs_embeds,
+                "attention_mask": attention_mask,
+                "cache_position": cache_position,
+                "past_key_values": past_key_values,
+                "position_ids": position_ids,
+            }
+            causal_mask = create_causal_mask(**mask_kwargs)
 
-        # OASIS: initialize histories with the embedding as the first entry
-        B, T, _ = hidden_states.shape
-        layer_outputs_history = [hidden_states]
-        # Embedding has no attention null posterior -> zeros
-        null_posteriors_history = [torch.zeros(B, T, device=hidden_states.device, dtype=hidden_states.dtype)]
-
-        for decoder_layer in self.layers[: self.config.num_hidden_layers]:
-            result = decoder_layer(
-                hidden_states,
-                attention_mask=causal_mask,
-                position_ids=position_ids,
-                past_key_values=past_key_values,
-                cache_position=cache_position,
-                position_embeddings=position_embeddings,
-                layer_outputs_history=layer_outputs_history,
-                null_posteriors_history=null_posteriors_history,
-                **kwargs,
-            )
-            # LlamaDecoderLayerExtra returns (hidden_states, updated_history, updated_null_posteriors)
-            # when layer_outputs_history is not None
-            if isinstance(result, tuple):
-                hidden_states, layer_outputs_history, null_posteriors_history = result
+            # Qwen3 uses a per-layer mask mapping (full_attention vs sliding_attention)
+            if is_qwen:
+                causal_mask_mapping = {"full_attention": causal_mask}
+                if getattr(self, "has_sliding_layers", False) and create_sliding_window_causal_mask is not None:
+                    causal_mask_mapping["sliding_attention"] = create_sliding_window_causal_mask(**mask_kwargs)
             else:
-                hidden_states = result
+                causal_mask_mapping = None
 
-        hidden_states = self.norm(hidden_states)
-        return BaseModelOutputWithPast(
-            last_hidden_state=hidden_states,
-            past_key_values=past_key_values,
-        )
+            hidden_states = inputs_embeds
+            position_embeddings = self.rotary_emb(hidden_states, position_ids)
 
-    base_model.forward = types.MethodType(patched_forward, base_model)
+            # OASIS: initialize histories with the embedding as the first entry
+            B, T, _ = hidden_states.shape
+            layer_outputs_history = [hidden_states]
+            # Embedding has no attention null posterior -> zeros
+            null_posteriors_history = [torch.zeros(B, T, device=hidden_states.device, dtype=hidden_states.dtype)]
+
+            for decoder_layer in self.layers[: self.config.num_hidden_layers]:
+                # Qwen3: select mask by layer's attention_type; Llama: use single mask
+                if causal_mask_mapping is not None:
+                    layer_mask = causal_mask_mapping[decoder_layer.attention_type]
+                else:
+                    layer_mask = causal_mask
+
+                result = decoder_layer(
+                    hidden_states,
+                    attention_mask=layer_mask,
+                    position_ids=position_ids,
+                    past_key_values=past_key_values,
+                    cache_position=cache_position,
+                    position_embeddings=position_embeddings,
+                    layer_outputs_history=layer_outputs_history,
+                    null_posteriors_history=null_posteriors_history,
+                    **kwargs,
+                )
+                if isinstance(result, tuple):
+                    hidden_states, layer_outputs_history, null_posteriors_history = result
+                else:
+                    hidden_states = result
+
+            hidden_states = self.norm(hidden_states)
+            return BaseModelOutputWithPast(
+                last_hidden_state=hidden_states,
+                past_key_values=past_key_values,
+            )
+
+    # Replace the class so the new forward bypasses HuggingFace decorator wrapping
+    base_model.__class__ = OASISModelForward
+    logger.info(f"OASIS: patched {original_cls.__name__} forward with history propagation")
 
 
 def main():
@@ -355,6 +385,10 @@ def main():
         config = CONFIG_MAPPING[args.model_type]()
         logger.warning("You are instantiating a new config instance from scratch.")
 
+    # OASIS needs per-head attention weights for null posterior -> force eager attention.
+    # This also ensures create_causal_mask produces the correct mask format (4D float mask).
+    config._attn_implementation = "eager"
+
     # Load model config changes from file, if provided
     if args.config_path is not None:
         logger.info(f"Loading model config changes from {args.config_path}")
@@ -403,6 +437,7 @@ def main():
             config=config,
             low_cpu_mem_usage=args.low_cpu_mem_usage,
             cache_dir=args.model_cache_dir,
+            attn_implementation="eager",
         )
     else:
         logger.info("Training new model from scratch")

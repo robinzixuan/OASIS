@@ -40,9 +40,6 @@ from transformers_language.models.opt_attention import (
 )
 from transformers_language.models.llama_attention import LlamaAttentionWithExtras, LlamaDecoderLayerExtra
 from transformers_language.models.qwen_attention import Qwen3AttentionWithExtras, Qwen3DecoderLayerExtra
-from transformers_language.models.quantized_opt import QuantizedOPTForCausalLM
-from transformers_language.models.quantized_llama import QuantizedLlamaForCausalLM
-from transformers_language.models.quantized_qwen import QuantizedQwen3ForCausalLM
 from transformers_language.models.softmax import SOFTMAX_MAPPING
 from transformers_language.quant_configs import get_quant_config
 from transformers_language.utils import (
