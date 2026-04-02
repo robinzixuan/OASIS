@@ -394,6 +394,9 @@ def main():
     ## Quantize:
     #
     if args.quantize:
+        from transformers_language.models.quantized_llama import QuantizedLlamaForCausalLM
+        from transformers_language.models.quantized_qwen import QuantizedQwen3ForCausalLM
+
         click_config = get_quant_config()
 
         # override number of batches
