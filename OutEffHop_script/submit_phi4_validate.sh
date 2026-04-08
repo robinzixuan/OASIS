@@ -2,6 +2,12 @@
 #===============================================================================
 # Phi-3 / Phi-4 文本模型 — validate_clm（走 phi4_attention + replace_attention_modules）
 #
+# 与 mentor 旧脚本（submit_outlier_valid_opt.sh / run.sh）已对齐的部分：
+#   conda init+source 回退、PYTHONUNBUFFERED、PYTHONNOUSERSITE、CUDA_VISIBLE_DEVICES、
+#   HF_HOME、PYTHONPATH+realpath、SLURM_SUBMIT_DIR 定位仓库（sbatch 拷贝脚本到 spool）。
+# mentor 脚本里另有 moose/gcc/cuda-11.4 等，是否加载取决于你节点与 PyTorch；本脚本用多版本 cuda 回退。
+# 代码库隐患（导师脚本无法预见）：vutils/softmax_1.py 曾在 import 时 torch.empty(..., cuda)，已删除。
+#
 # 你可能还要改的地方：
 #   1) 下面 module load：已与 Quest 上 module avail 里「全名」对齐；若 PyTorch 是 cu118 请改用 cuda/11.8 那行
 #   2) PHI4_MODEL、SCRATCH_ROOT：见下方「用户配置」
@@ -37,8 +43,8 @@ set -euo pipefail
 #--------------- 用户配置（至少改 PHI4_MODEL；建议改 SCRATCH_ROOT）---------------
 PHI4_MODEL="${PHI4_MODEL:-microsoft/Phi-3-mini-4k-instruct}"
 SCRATCH_ROOT="${SCRATCH_ROOT:-/scratch/${USER}/residual}"
-# 试跑可把数据集换成 wikitext_2、block_size 改小
-DATASET_SETUP="${DATASET_SETUP:-bookcorpus_and_wiki}"
+# 默认 wikitext_2 与「先冒烟」一致；导师式全量 benchmark：export DATASET_SETUP=bookcorpus_and_wiki
+DATASET_SETUP="${DATASET_SETUP:-wikitext_2}"
 BLOCK_SIZE="${BLOCK_SIZE:-512}"
 EVAL_BS="${EVAL_BS:-4}"
 ATTN_SOFTMAX="${ATTN_SOFTMAX:-vanilla}"
@@ -60,8 +66,29 @@ if ! module load cuda/12.6.2-gcc-12.4.0 2>/dev/null; then
   fi
 fi
 
-eval "$(conda shell.bash hook 2>/dev/null)" || true
+# ----- 与 mentor 的 submit_outlier_valid_opt.sh / run.sh 对齐，减少批处理环境差异 -----
+export PYTHONUNBUFFERED=1
+export PYTHONNOUSERSITE=1
+export CUDA_VISIBLE_DEVICES=0
+export HF_HOME="${HF_HOME:-${SCRATCH_ROOT}/.hf_home}"
+mkdir -p "${HF_HOME}"
+
+# mentor：conda init + source ~/.bashrc；sbatch 非交互下比单靠 hook 更稳
+set +e
+if command -v conda >/dev/null 2>&1; then
+  eval "$(conda shell.bash hook 2>/dev/null)" || true
+else
+  conda init bash 2>/dev/null || true
+  # shellcheck disable=SC1090
+  [[ -f "${HOME}/.bashrc" ]] && source "${HOME}/.bashrc"
+fi
 conda activate outlier
+_CONDA_RC=$?
+set -e
+if [[ ${_CONDA_RC} -ne 0 ]]; then
+  echo "conda activate outlier failed (exit ${_CONDA_RC})"
+  exit 1
+fi
 
 # Slurm 把脚本拷到 /var/spool/slurmd/...，不能用 BASH_SOURCE 找仓库；用提交时的 cwd。
 if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
@@ -81,7 +108,8 @@ cd "${REPO_ROOT}/OutEffHop" || { echo "Cannot cd to ${REPO_ROOT}/OutEffHop"; exi
 
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
-export PYTHONPATH="${PYTHONPATH:-}:${PWD}"
+_PP="$(realpath "${PWD}" 2>/dev/null || pwd -P)"
+export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}${_PP}"
 
 DATA_CACHE="${SCRATCH_ROOT}/.hf_data"
 MODEL_CACHE="${SCRATCH_ROOT}/.hf_cache"

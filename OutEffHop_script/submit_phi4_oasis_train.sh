@@ -34,7 +34,8 @@ set -euo pipefail
 PHI4_MODEL="${PHI4_MODEL:-microsoft/Phi-3-mini-4k-instruct}"
 SCRATCH_ROOT="${SCRATCH_ROOT:-/scratch/${USER}/residual}"
 OUTPUT_DIR_NAME="${OUTPUT_DIR_NAME:-oasis_phi4_${SLURM_JOB_ID:-local}}"
-DATASET_SETUP="${DATASET_SETUP:-bookcorpus_and_wiki}"
+# 默认小数据冒烟；导师式：export DATASET_SETUP=bookcorpus_and_wiki
+DATASET_SETUP="${DATASET_SETUP:-wikitext_2}"
 
 # 试跑改小；正式跑再加大
 MAX_TRAIN_STEPS="${MAX_TRAIN_STEPS:-2000}"
@@ -66,8 +67,26 @@ if ! module load cuda/12.6.2-gcc-12.4.0 2>/dev/null; then
   fi
 fi
 
-eval "$(conda shell.bash hook 2>/dev/null)" || true
+export PYTHONUNBUFFERED=1
+export PYTHONNOUSERSITE=1
+export CUDA_VISIBLE_DEVICES=0
+export HF_HOME="${HF_HOME:-${SCRATCH_ROOT}/.hf_home}"
+mkdir -p "${HF_HOME}"
+
+set +e
+if command -v conda >/dev/null 2>&1; then
+  eval "$(conda shell.bash hook 2>/dev/null)" || true
+else
+  conda init bash 2>/dev/null || true
+  [[ -f "${HOME}/.bashrc" ]] && source "${HOME}/.bashrc"
+fi
 conda activate outlier
+_CONDA_RC=$?
+set -e
+if [[ ${_CONDA_RC} -ne 0 ]]; then
+  echo "conda activate outlier failed (exit ${_CONDA_RC})"
+  exit 1
+fi
 
 # Slurm 拷贝脚本后 BASH_SOURCE 不在仓库内；用 SLURM_SUBMIT_DIR。
 if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
@@ -87,7 +106,8 @@ cd "${REPO_ROOT}/OutEffHop" || { echo "Cannot cd to ${REPO_ROOT}/OutEffHop"; exi
 
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
-export PYTHONPATH="${PYTHONPATH:-}:${PWD}"
+_PP="$(realpath "${PWD}" 2>/dev/null || pwd -P)"
+export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}${_PP}"
 export WANDB_PROJECT
 export WANDB_ENABLED
 
