@@ -144,7 +144,7 @@ def main():
         logger.info("Training new model from scratch")
         model = AutoModelForCausalLM.from_config(config)
 
-    # >> replace self-attention module with ours (supports OPT, Llama, Qwen)
+    # >> replace self-attention module with ours (supports OPT, Llama, Qwen, Phi-3/Phi-4)
     decoder_info = replace_attention_modules(model, args)
 
     # Gating -> load the model again to load missing alpha (OPT only)
@@ -461,6 +461,10 @@ def main():
             model = QuantizedOPTForCausalLM(model, **qparams)
         elif decoder_info["arch"] == "qwen":
             model = QuantizedQwen3ForCausalLM(model, **qparams)
+        elif decoder_info["arch"] == "phi4":
+            raise NotImplementedError(
+                "QuantizedPhi4 is not implemented; run benchmark without --quantize or add quantized_phi4."
+            )
         else:
             model = QuantizedLlamaForCausalLM(model, **qparams)
         model.set_quant_state(
