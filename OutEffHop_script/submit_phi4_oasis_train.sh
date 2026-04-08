@@ -69,8 +69,20 @@ fi
 eval "$(conda shell.bash hook 2>/dev/null)" || true
 conda activate outlier
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# Slurm 拷贝脚本后 BASH_SOURCE 不在仓库内；用 SLURM_SUBMIT_DIR。
+if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
+  if [[ -d "${SLURM_SUBMIT_DIR}/OutEffHop" ]]; then
+    REPO_ROOT="${SLURM_SUBMIT_DIR}"
+  elif [[ -d "$(cd "${SLURM_SUBMIT_DIR}/.." && pwd)/OutEffHop" ]]; then
+    REPO_ROOT="$(cd "${SLURM_SUBMIT_DIR}/.." && pwd)"
+  else
+    echo "OutEffHop not found near SLURM_SUBMIT_DIR=${SLURM_SUBMIT_DIR}; sbatch from repo root or OutEffHop_script."
+    exit 1
+  fi
+else
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+  REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+fi
 cd "${REPO_ROOT}/OutEffHop" || { echo "Cannot cd to ${REPO_ROOT}/OutEffHop"; exit 1; }
 
 export LC_ALL=C.UTF-8
