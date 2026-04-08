@@ -1,17 +1,12 @@
 #!/bin/bash
 #===============================================================================
-# Phi-3 / Phi-4 文本模型 — run_clm_oasis（phi4_oasis_attention + patch forward）
-#
+# Phi-3 / Phi-4 文本模型 �?run_clm_oasis（phi4_oasis_attention + patch forward�?#
 # 你可能还要改的地方：
-#   1) #SBATCH -t / --mem / --gres：按模型大小与训练步数调整
-#   2) PHI4_MODEL：默认 Hub ID；本地目录则 export PHI4_MODEL=/path/to/model（含 config.json）
-#   3) SCRATCH_ROOT、OUTPUT_DIR_NAME、训练超参（可先改小做 smoke test）
-#   4) 模块与 conda 环境名若不同请改 module load / conda activate
+#   1) #SBATCH -t / --mem / --gres：按模型大小与训练步数调�?#   2) PHI4_MODEL：默�?Hub ID；本地目录则 export PHI4_MODEL=/path/to/model（含 config.json�?#   3) SCRATCH_ROOT、OUTPUT_DIR_NAME、训练超参（可先改小�?smoke test�?#   4) 模块�?conda 环境名若不同请改 module load / conda activate
 #
 # Smoke test 建议：MAX_TRAIN_STEPS=50，BLOCK_SIZE=256，per_device_train_batch_size=1
 #
-# 提交：
-#   sbatch /path/to/OASIS/OutEffHop_script/submit_phi4_oasis_train.sh
+# 提交�?#   sbatch /path/to/OASIS/OutEffHop_script/submit_phi4_oasis_train.sh
 #===============================================================================
 
 #SBATCH -A p32013
@@ -31,14 +26,13 @@
 set -euo pipefail
 
 #--------------- 用户配置 ----------------------------------------------------
-PHI4_MODEL="${PHI4_MODEL:-microsoft/Phi-3-mini-4k-instruct}"
+PHI4_MODEL="${PHI4_MODEL:-microsoft/Phi-4-mini-instruct}"
 SCRATCH_ROOT="${SCRATCH_ROOT:-/scratch/${USER}/residual}"
 OUTPUT_DIR_NAME="${OUTPUT_DIR_NAME:-oasis_phi4_${SLURM_JOB_ID:-local}}"
 # 默认小数据冒烟；导师式：export DATASET_SETUP=bookcorpus_and_wiki
 DATASET_SETUP="${DATASET_SETUP:-wikitext_2}"
 
-# 试跑改小；正式跑再加大
-MAX_TRAIN_STEPS="${MAX_TRAIN_STEPS:-2000}"
+# 试跑改小；正式跑再加�?MAX_TRAIN_STEPS="${MAX_TRAIN_STEPS:-2000}"
 BLOCK_SIZE="${BLOCK_SIZE:-512}"
 MAX_SEQ_LENGTH="${MAX_SEQ_LENGTH:-2048}"
 PER_DEV_TRAIN_BS="${PER_DEV_TRAIN_BS:-2}"
@@ -50,18 +44,16 @@ SEED="${SEED:-1000}"
 RUN_NAME="${RUN_NAME:-phi4_oasis_smoke}"
 
 WANDB_PROJECT="${WANDB_PROJECT:-residual}"
-# 不需要 wandb 时设为 false
+# 不需�?wandb 时设�?false
 WANDB_ENABLED="${WANDB_ENABLED:-false}"
 #------------------------------------------------------------------------------
 
 module purge 2>/dev/null || true
 
-# Lmod 报 luac spiderT.lua 错：rm -rf ~/.cache/lmod 后重登
-
+# Lmod �?luac spiderT.lua 错：rm -rf ~/.cache/lmod 后重�?
 module load python-miniconda3/4.12.0
 
-# torch 2.7+cu128：wheel 自带 12.8；module 选集群上较新的 12.x（见 submit_phi4_validate.sh 注释）
-if ! module load cuda/12.6.2-gcc-12.4.0 2>/dev/null; then
+# torch 2.7+cu128：wheel 自带 12.8；module 选集群上较新�?12.x（见 submit_phi4_validate.sh 注释�?if ! module load cuda/12.6.2-gcc-12.4.0 2>/dev/null; then
   if ! module load cuda/12.4.1-gcc-12.3.0 2>/dev/null; then
     module load cuda/12.1.0-gcc-11.2.0 || true
   fi
@@ -88,8 +80,7 @@ if [[ ${_CONDA_RC} -ne 0 ]]; then
   exit 1
 fi
 
-# Slurm 拷贝脚本后 BASH_SOURCE 不在仓库内；用 SLURM_SUBMIT_DIR。
-if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
+# Slurm 拷贝脚本�?BASH_SOURCE 不在仓库内；�?SLURM_SUBMIT_DIR�?if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
   if [[ -d "${SLURM_SUBMIT_DIR}/OutEffHop" ]]; then
     REPO_ROOT="${SLURM_SUBMIT_DIR}"
   elif [[ -d "$(cd "${SLURM_SUBMIT_DIR}/.." && pwd)/OutEffHop" ]]; then

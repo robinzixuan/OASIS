@@ -1,24 +1,15 @@
 #!/bin/bash
 #===============================================================================
-# Phi-3 / Phi-4 文本模型 — validate_clm（走 phi4_attention + replace_attention_modules）
-#
-# 与 mentor 旧脚本（submit_outlier_valid_opt.sh / run.sh）已对齐的部分：
-#   conda init+source 回退、PYTHONUNBUFFERED、PYTHONNOUSERSITE、CUDA_VISIBLE_DEVICES、
-#   HF_HOME、PYTHONPATH+realpath、SLURM_SUBMIT_DIR 定位仓库（sbatch 拷贝脚本到 spool）。
-# mentor 脚本里另有 moose/gcc/cuda-11.4 等，是否加载取决于你节点与 PyTorch；本脚本用多版本 cuda 回退。
-# 代码库隐患（导师脚本无法预见）：vutils/softmax_1.py 曾在 import 时 torch.empty(..., cuda)，已删除。
-#
+# Phi-3 / Phi-4 文本模型 �?validate_clm（走 phi4_attention + replace_attention_modules�?#
+# �?mentor 旧脚本（submit_outlier_valid_opt.sh / run.sh）已对齐的部分：
+#   conda init+source 回退、PYTHONUNBUFFERED、PYTHONNOUSERSITE、CUDA_VISIBLE_DEVICES�?#   HF_HOME、PYTHONPATH+realpath、SLURM_SUBMIT_DIR 定位仓库（sbatch 拷贝脚本�?spool）�?# mentor 脚本里另�?moose/gcc/cuda-11.4 等，是否加载取决于你节点�?PyTorch；本脚本用多版本 cuda 回退�?# 代码库隐患（导师脚本无法预见）：vutils/softmax_1.py 曾在 import �?torch.empty(..., cuda)，已删除�?#
 # 你可能还要改的地方：
-#   1) 下面 module load：已与 Quest 上 module avail 里「全名」对齐；若 PyTorch 是 cu118 请改用 cuda/11.8 那行
-#   2) PHI4_MODEL、SCRATCH_ROOT：见下方「用户配置」
+#   1) 下面 module load：已�?Quest �?module avail 里「全名」对齐；�?PyTorch �?cu118 请改�?cuda/11.8 那行
+#   2) PHI4_MODEL、SCRATCH_ROOT：见下方「用户配置�?#
+# 若每�?module avail 都出�?luac: ... spiderT... unexpected symbol�?#   退出登录后执行  rm -rf ~/.cache/lmod  再重�?ssh（损坏的是本�?Lmod 缓存，不是集群）
 #
-# 若每次 module avail 都出现 luac: ... spiderT... unexpected symbol：
-#   退出登录后执行  rm -rf ~/.cache/lmod  再重新 ssh（损坏的是本机 Lmod 缓存，不是集群）
-#
-# 模型用 Hub 还是本地？脚本里 PHI4_MODEL 默认是 Hugging Face Hub ID。
-#   - 能联网且接受默认小模型：不用改。
-#   - 本地已有权重目录：export PHI4_MODEL=/projects/p32013/.../your_model_dir
-#     （该目录里应有 config.json、tokenizer 与权重；与 from_pretrained 要求一致）
+# 模型�?Hub 还是本地？脚本里 PHI4_MODEL 默认�?Hugging Face Hub ID�?#   - 能联网且接受默认小模型：不用改�?#   - 本地已有权重目录：export PHI4_MODEL=/projects/p32013/.../your_model_dir
+#     （该目录里应�?config.json、tokenizer 与权重；�?from_pretrained 要求一致）
 #
 # 提交（在任意目录均可）：
 #   sbatch /path/to/OASIS/OutEffHop_script/submit_phi4_validate.sh
@@ -40,10 +31,10 @@
 
 set -euo pipefail
 
-#--------------- 用户配置（至少改 PHI4_MODEL；建议改 SCRATCH_ROOT）---------------
-PHI4_MODEL="${PHI4_MODEL:-microsoft/Phi-3-mini-4k-instruct}"
+#--------------- 用户配置（至少改 PHI4_MODEL；建议改 SCRATCH_ROOT�?--------------
+PHI4_MODEL="${PHI4_MODEL:-microsoft/Phi-4-mini-instruct}"
 SCRATCH_ROOT="${SCRATCH_ROOT:-/scratch/${USER}/residual}"
-# 默认 wikitext_2 与「先冒烟」一致；导师式全量 benchmark：export DATASET_SETUP=bookcorpus_and_wiki
+# 默认 wikitext_2 与「先冒烟」一致；导师式全�?benchmark：export DATASET_SETUP=bookcorpus_and_wiki
 DATASET_SETUP="${DATASET_SETUP:-wikitext_2}"
 BLOCK_SIZE="${BLOCK_SIZE:-512}"
 EVAL_BS="${EVAL_BS:-4}"
@@ -54,26 +45,23 @@ SEED="${SEED:-5678}"
 
 module purge 2>/dev/null || true
 
-# Conda 初始化（与 mentor 脚本一致）。若你登录后已有 conda，可注释掉下一行避免重复。
-module load python-miniconda3/4.12.0
+# Conda 初始化（�?mentor 脚本一致）。若你登录后已有 conda，可注释掉下一行避免重复�?module load python-miniconda3/4.12.0
 
-# CUDA toolkit：你的环境为 torch 2.7+cu128（自带 CUDA 12.8 运行时），以下 module 主要提供
-# CUDA_HOME / nvcc；与 12.8 不必逐位相同。按 Quest 上 module avail 选「最新的 12.x」即可。
-# 顺序：先试 rhel8 的 12.6，再 12.4，再 rhel7 spack 的 12.1（哪个成功用哪个）。
-if ! module load cuda/12.6.2-gcc-12.4.0 2>/dev/null; then
+# CUDA toolkit：你的环境为 torch 2.7+cu128（自�?CUDA 12.8 运行时），以�?module 主要提供
+# CUDA_HOME / nvcc；与 12.8 不必逐位相同。按 Quest �?module avail 选「最新的 12.x」即可�?# 顺序：先�?rhel8 �?12.6，再 12.4，再 rhel7 spack �?12.1（哪个成功用哪个）�?if ! module load cuda/12.6.2-gcc-12.4.0 2>/dev/null; then
   if ! module load cuda/12.4.1-gcc-12.3.0 2>/dev/null; then
     module load cuda/12.1.0-gcc-11.2.0 || true
   fi
 fi
 
-# ----- 与 mentor 的 submit_outlier_valid_opt.sh / run.sh 对齐，减少批处理环境差异 -----
+# ----- �?mentor �?submit_outlier_valid_opt.sh / run.sh 对齐，减少批处理环境差异 -----
 export PYTHONUNBUFFERED=1
 export PYTHONNOUSERSITE=1
 export CUDA_VISIBLE_DEVICES=0
 export HF_HOME="${HF_HOME:-${SCRATCH_ROOT}/.hf_home}"
 mkdir -p "${HF_HOME}"
 
-# mentor：conda init + source ~/.bashrc；sbatch 非交互下比单靠 hook 更稳
+# mentor：conda init + source ~/.bashrc；sbatch 非交互下比单�?hook 更稳
 set +e
 if command -v conda >/dev/null 2>&1; then
   eval "$(conda shell.bash hook 2>/dev/null)" || true
@@ -90,8 +78,7 @@ if [[ ${_CONDA_RC} -ne 0 ]]; then
   exit 1
 fi
 
-# Slurm 把脚本拷到 /var/spool/slurmd/...，不能用 BASH_SOURCE 找仓库；用提交时的 cwd。
-if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
+# Slurm 把脚本拷�?/var/spool/slurmd/...，不能用 BASH_SOURCE 找仓库；用提交时�?cwd�?if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
   if [[ -d "${SLURM_SUBMIT_DIR}/OutEffHop" ]]; then
     REPO_ROOT="${SLURM_SUBMIT_DIR}"
   elif [[ -d "$(cd "${SLURM_SUBMIT_DIR}/.." && pwd)/OutEffHop" ]]; then
@@ -116,7 +103,7 @@ MODEL_CACHE="${SCRATCH_ROOT}/.hf_cache"
 OUT_DIR="${SCRATCH_ROOT}/output_metrics/phi4_validate_${SLURM_JOB_ID:-local}"
 mkdir -p "${DATA_CACHE}" "${MODEL_CACHE}" "$(dirname "${OUT_DIR}")"
 
-# 评测：单卡、无混合精度（与 mentor 的 validate 脚本一致，数值更稳）
+# 评测：单卡、无混合精度（与 mentor �?validate 脚本一致，数值更稳）
 accelerate launch --config_file accelerate_configs/1gpu_no_mp.yaml validate_clm.py \
   --seed "${SEED}" \
   --dataset_setup "${DATASET_SETUP}" \
