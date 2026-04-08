@@ -1,12 +1,10 @@
 #!/bin/bash
 #===============================================================================
-# Phi-4 causal LM ? run_clm_oasis.py (phi4_oasis_attention + OASIS forward)
+# Phi-4 文本模型 — run_clm_ddp（phi4_attention，非 OASIS）
 #
-# Sequence length for training data chunks: --block_size (required by this codebase).
-# For parity with your sbatch, MAX_SEQ_LENGTH is set to the same value (512) and
-# passed through; run_clm_oasis may still rely primarily on block_size for grouping.
-#
-# sbatch /path/to/OASIS/OutEffHop_script/submit_phi4_oasis_train.sh
+# 与 submit_phi4_oasis_train.sh 使用同一套「可对齐」默认超参（见该文件顶部注释）。
+# 提交：
+#   sbatch /path/to/OASIS/OutEffHop_script/submit_phi4_vanilla_train.sh
 #===============================================================================
 
 #SBATCH -A p32013
@@ -17,18 +15,18 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --job-name=phi4-oasis
-#SBATCH --output=slurm_phi4_oasis_%j.out
-#SBATCH --error=slurm_phi4_oasis_%j.err
+#SBATCH --job-name=phi4-vanilla
+#SBATCH --output=slurm_phi4_vanilla_%j.out
+#SBATCH --error=slurm_phi4_vanilla_%j.err
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=onionzsy@umich.edu
 
 set -euo pipefail
 
-#--------------- User config -------------------------------------------------
+#--------------- 用户配置（与 submit_phi4_oasis_train.sh 保持同名变量、同默认值）----
 PHI4_MODEL="${PHI4_MODEL:-microsoft/Phi-4-mini-instruct}"
 SCRATCH_ROOT="${SCRATCH_ROOT:-/scratch/${USER}/residual}"
-OUTPUT_DIR_NAME="${OUTPUT_DIR_NAME:-oasis_phi4_${SLURM_JOB_ID:-local}}"
+OUTPUT_DIR_NAME="${OUTPUT_DIR_NAME:-vanilla_phi4_${SLURM_JOB_ID:-local}}"
 DATASET_SETUP="${DATASET_SETUP:-wikitext_2}"
 
 MAX_TRAIN_STEPS="${MAX_TRAIN_STEPS:-2000}"
@@ -40,14 +38,13 @@ GRAD_ACCUM="${GRAD_ACCUM:-16}"
 LEARNING_RATE="${LEARNING_RATE:-2e-4}"
 WARMUP_STEPS="${WARMUP_STEPS:-200}"
 SEED="${SEED:-1000}"
-RUN_NAME="${RUN_NAME:-phi4_oasis_512}"
+RUN_NAME="${RUN_NAME:-phi4_vanilla_512}"
 
 WANDB_PROJECT="${WANDB_PROJECT:-residual}"
 WANDB_ENABLED="${WANDB_ENABLED:-false}"
 #------------------------------------------------------------------------------
 
 module purge 2>/dev/null || true
-
 module load python-miniconda3/4.12.0
 
 if ! module load cuda/12.6.2-gcc-12.4.0 2>/dev/null; then
@@ -99,8 +96,8 @@ export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}${_PP}"
 export WANDB_PROJECT
 export WANDB_ENABLED
 
-DATA_CACHE="${SCRATCH_ROOT}/phi4_oasis/.hf_data"
-MODEL_CACHE="${SCRATCH_ROOT}/phi4_oasis/.hf_cache"
+DATA_CACHE="${SCRATCH_ROOT}/phi4_vanilla/.hf_data"
+MODEL_CACHE="${SCRATCH_ROOT}/phi4_vanilla/.hf_cache"
 OUTPUT_DIR="${SCRATCH_ROOT}/output/${OUTPUT_DIR_NAME}"
 mkdir -p "${DATA_CACHE}" "${MODEL_CACHE}" "${OUTPUT_DIR}"
 
@@ -111,7 +108,7 @@ else
   TRACK_ARGS=(--run_name "${RUN_NAME}")
 fi
 
-accelerate launch --config_file accelerate_configs/1gpu_fp16.yaml run_clm_oasis.py \
+accelerate launch --config_file accelerate_configs/1gpu_fp16.yaml run_clm_ddp.py \
   "${TRACK_ARGS[@]}" \
   --pad_to_max_length \
   --wd_LN_gamma \

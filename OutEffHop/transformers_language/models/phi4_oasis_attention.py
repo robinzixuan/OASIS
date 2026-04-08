@@ -73,7 +73,7 @@ def eager_attention_forward(
 
 
 class Phi4AttentionWithExtras(nn.Module):
-    """Phi-4 (Phi-3 backbone): fused QKV attention with OASIS-friendly eager weights."""
+    """Phi-4: fused QKV attention with OASIS-friendly eager weights."""
 
     def __init__(self, config: Phi3Config, layer_idx: int, softmax_fn: Callable = nn.functional.softmax):
         super().__init__()

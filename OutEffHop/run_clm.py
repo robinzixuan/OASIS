@@ -44,6 +44,7 @@ from transformers import (
 )
 
 from transformers_language.args import parse_args
+from transformers_language.phi4_defaults import DEFAULT_PHI4_HUB_ID
 from transformers_language.dataset_setups import DatasetSetups
 from transformers_language.models.opt_attention import (
     AttentionGateType,
@@ -95,6 +96,9 @@ def attach_tb_act_hooks(model):
 def main():
     
     args = parse_args()
+    if args.model_name_or_path is None and args.model_type is None and args.config_name is None:
+        args.model_name_or_path = DEFAULT_PHI4_HUB_ID
+        logger.info("Using default model: %s", DEFAULT_PHI4_HUB_ID)
 
     # convert dataset setup to an enum
     dataset_setup = DatasetSetups[args.dataset_setup]

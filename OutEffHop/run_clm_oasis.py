@@ -44,6 +44,7 @@ from transformers import (
 )
 
 from transformers_language.args import parse_args
+from transformers_language.phi4_defaults import DEFAULT_PHI4_HUB_ID
 from transformers_language.dataset_setups import DatasetSetups
 from transformers_language.models.opt_attention import (
     AttentionGateType,
@@ -229,7 +230,7 @@ def patch_model_forward_for_oasis(model):
     HuggingFace decorator wrapping that can prevent monkey-patches from working.
 
     Supports Llama (single causal_mask), Qwen3 (per-layer attention_type masks),
-    and Phi-3 / Phi-4 (model_type phi3; RoPE via ``position_ids=``).
+    and Phi-4 (RoPE via ``position_ids=`` on some transformers builds).
     """
     from transformers.modeling_outputs import BaseModelOutputWithPast
     from transformers.cache_utils import DynamicCache
@@ -294,7 +295,7 @@ def patch_model_forward_for_oasis(model):
                 causal_mask_mapping = None
 
             hidden_states = inputs_embeds
-            # Phi3RotaryEmbedding expects keyword position_ids on some transformers versions
+            # Rotary embedding expects keyword position_ids on some transformers versions
             position_embeddings = self.rotary_emb(hidden_states, position_ids=position_ids)
 
             # OASIS: initialize histories with the embedding as the first entry
@@ -346,6 +347,9 @@ def main():
     #     f" {gpus_per_node} allocated GPUs per node.", flush=True)
     
     args = parse_args()
+    if args.model_name_or_path is None and args.model_type is None and args.config_name is None:
+        args.model_name_or_path = DEFAULT_PHI4_HUB_ID
+        logger.info("Using default model: %s", DEFAULT_PHI4_HUB_ID)
 
     # convert dataset setup to an enum
     dataset_setup = DatasetSetups[args.dataset_setup]

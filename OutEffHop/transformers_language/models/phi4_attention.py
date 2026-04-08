@@ -46,7 +46,7 @@ def eager_attention_forward(
 
 
 class Phi4AttentionWithExtras(nn.Module):
-    """Phi-4 (Phi-3 backbone): fused QKV multi-head attention."""
+    """Phi-4: fused QKV multi-head attention."""
 
     def __init__(self, config: Phi3Config, layer_idx: int, softmax_fn: Callable = nn.functional.softmax):
         super().__init__()
@@ -217,7 +217,7 @@ class Phi4DecoderLayerExtra(GradientCheckpointingLayer):
         layer_outputs_history: Optional[List[torch.Tensor]] = None,
         **kwargs: Unpack[TransformersKwargs],
     ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
-        """Forward with Attention Residual aggregation (Phi-3 backbone residual dropout preserved)."""
+        """Forward with Attention Residual aggregation (residual dropout preserved)."""
         use_attn_res = layer_outputs_history is not None
 
         residual = hidden_states
