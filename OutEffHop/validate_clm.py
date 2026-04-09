@@ -33,6 +33,7 @@ from transformers import (
 from quantization.quantizers import QMethods
 from quantization.range_estimators import OptMethod, RangeEstimators
 from transformers_language.args import parse_args
+from transformers_language.phi4_defaults import DEFAULT_PHI4_HUB_ID
 from transformers_language.dataset_setups import DatasetSetups
 from transformers_language.models.opt_attention import (
     AttentionGateType,
@@ -64,6 +65,9 @@ MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
 
 def main():
     args = parse_args()
+    if args.model_name_or_path is None and args.model_type is None and args.config_name is None:
+        args.model_name_or_path = DEFAULT_PHI4_HUB_ID
+        logger.info("Using default model: %s", DEFAULT_PHI4_HUB_ID)
     logger.info(args)
 
     # convert dataset setup to an enum
@@ -144,7 +148,7 @@ def main():
         logger.info("Training new model from scratch")
         model = AutoModelForCausalLM.from_config(config)
 
-    # >> replace self-attention module with ours (supports OPT, Llama, Qwen)
+    # >> replace self-attention module with ours (supports OPT, Llama, Qwen, Phi-4)
     decoder_info = replace_attention_modules(model, args)
 
     # Gating -> load the model again to load missing alpha (OPT only)
@@ -461,6 +465,10 @@ def main():
             model = QuantizedOPTForCausalLM(model, **qparams)
         elif decoder_info["arch"] == "qwen":
             model = QuantizedQwen3ForCausalLM(model, **qparams)
+        elif decoder_info["arch"] == "phi4":
+            raise NotImplementedError(
+                "QuantizedPhi4 is not implemented; run benchmark without --quantize or add quantized_phi4."
+            )
         else:
             model = QuantizedLlamaForCausalLM(model, **qparams)
         model.set_quant_state(

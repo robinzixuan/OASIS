@@ -230,9 +230,6 @@ def _bwd_kernel(
         tl.store(dv_ptrs, dv)
 
 
-empty = torch.empty(128, device="cuda")
-
-
 def softmax_n_shifted_zeros(input: torch.Tensor, n: int, dim=-1, dtype=torch.float32) -> torch.Tensor:
     """
     $\text(softmax)_n(x_i) = exp(x_i) / (n + \sum_j exp(x_j))$

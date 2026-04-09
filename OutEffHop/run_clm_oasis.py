@@ -44,12 +44,14 @@ from transformers import (
 )
 
 from transformers_language.args import parse_args
+from transformers_language.phi4_defaults import DEFAULT_PHI4_HUB_ID
 from transformers_language.dataset_setups import DatasetSetups
 from transformers_language.models.opt_attention import (
     AttentionGateType,
     OPTAttentionWithExtras,
 )
 from transformers_language.models.llama_oasis_attention import LlamaAttentionWithExtras, LlamaDecoderLayerExtra
+from transformers_language.models.phi4_oasis_attention import Phi4DecoderLayerExtra as Phi4OASISDecoderLayerExtra
 from transformers_language.models.qwen_oasis_attention import Qwen3AttentionWithExtras, Qwen3DecoderLayerExtra
 from transformers_language.models.softmax import SOFTMAX_MAPPING
 from transformers_language.utils import count_params, kurtosis
@@ -116,7 +118,13 @@ def get_decoder_components(model):
         }
 
     if hasattr(base_model, "layers"):
-        arch = "qwen" if getattr(model.config, "model_type", "") == "qwen3" else "llama"
+        model_type = getattr(model.config, "model_type", "")
+        if model_type == "qwen3":
+            arch = "qwen"
+        elif model_type == "phi3":
+            arch = "phi4"
+        else:
+            arch = "llama"
         return {
             "arch": arch,
             "decoder": base_model,
@@ -180,6 +188,19 @@ def replace_attention_modules(model, args):
             new_layer.input_layernorm.load_state_dict(old_layer.input_layernorm.state_dict())
             new_layer.post_attention_layernorm.load_state_dict(old_layer.post_attention_layernorm.state_dict())
             decoder_info["layers"][layer_idx] = new_layer
+        elif decoder_info["arch"] == "phi4":
+            new_layer = Phi4OASISDecoderLayerExtra(
+                config=model.config,
+                layer_idx=layer_idx,
+                softmax_fn=SOFTMAX_MAPPING[args.attn_softmax],
+                attn_res_softmax_fn=SOFTMAX_MAPPING[args.attn_res_softmax_fn],
+            )
+            new_layer.self_attn.qkv_proj.load_state_dict(old_layer.self_attn.qkv_proj.state_dict())
+            new_layer.self_attn.o_proj.load_state_dict(old_layer.self_attn.o_proj.state_dict())
+            new_layer.mlp.load_state_dict(old_layer.mlp.state_dict())
+            new_layer.input_layernorm.load_state_dict(old_layer.input_layernorm.state_dict())
+            new_layer.post_attention_layernorm.load_state_dict(old_layer.post_attention_layernorm.state_dict())
+            decoder_info["layers"][layer_idx] = new_layer
         else:
             new_layer = LlamaDecoderLayerExtra(
                 config=model.config,
@@ -208,8 +229,8 @@ def patch_model_forward_for_oasis(model):
     Uses __class__ replacement instead of instance method binding to bypass
     HuggingFace decorator wrapping that can prevent monkey-patches from working.
 
-    Supports both Llama (single causal_mask) and Qwen3 (causal_mask_mapping dict
-    with per-layer attention_type routing).
+    Supports Llama (single causal_mask), Qwen3 (per-layer attention_type masks),
+    and Phi-4 (RoPE via ``position_ids=`` on some transformers builds).
     """
     from transformers.modeling_outputs import BaseModelOutputWithPast
     from transformers.cache_utils import DynamicCache
@@ -274,7 +295,8 @@ def patch_model_forward_for_oasis(model):
                 causal_mask_mapping = None
 
             hidden_states = inputs_embeds
-            position_embeddings = self.rotary_emb(hidden_states, position_ids)
+            # Rotary embedding expects keyword position_ids on some transformers versions
+            position_embeddings = self.rotary_emb(hidden_states, position_ids=position_ids)
 
             # OASIS: initialize histories with the embedding as the first entry
             B, T, _ = hidden_states.shape
@@ -325,6 +347,9 @@ def main():
     #     f" {gpus_per_node} allocated GPUs per node.", flush=True)
     
     args = parse_args()
+    if args.model_name_or_path is None and args.model_type is None and args.config_name is None:
+        args.model_name_or_path = DEFAULT_PHI4_HUB_ID
+        logger.info("Using default model: %s", DEFAULT_PHI4_HUB_ID)
 
     # convert dataset setup to an enum
     dataset_setup = DatasetSetups[args.dataset_setup]
