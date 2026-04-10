@@ -6,6 +6,7 @@ import logging
 import math
 import os
 import random
+import yaml
 from collections import OrderedDict
 from itertools import chain
 from pathlib import Path
@@ -117,22 +118,42 @@ def main():
         config = CONFIG_MAPPING[args.model_type]()
         logger.warning("You are instantiating a new config instance from scratch.")
 
+    if args.config_path is not None:
+        logger.info("Loading model config changes from %s", args.config_path)
+        with open(args.config_path) as f:
+            config_changes = yaml.safe_load(f)
+        for key, value in config_changes.items():
+            setattr(config, key, value)
+
+    if args.attn_dropout is not None:
+        logger.info("Setting attention dropout rate to %s", args.attn_dropout)
+        if hasattr(config, "attention_probs_dropout_prob"):
+            config.attention_probs_dropout_prob = args.attn_dropout
+        if hasattr(config, "attention_dropout"):
+            config.attention_dropout = args.attn_dropout
+
+    if args.hidden_dropout is not None:
+        logger.info("Setting hidden dropout rate to %s", args.hidden_dropout)
+        if hasattr(config, "hidden_dropout_prob"):
+            config.hidden_dropout_prob = args.hidden_dropout
+
     # Display config after changes
     logger.info("HuggingFace config after user changes:")
     logger.info(str(config))
 
-    # Load tokenizer
+    # Load tokenizer (Accelerate checkpoints often omit tokenizer files — use --tokenizer_name hub id)
     tokenizer_kwargs = {
-        # 'cache_dir': args.model_cache_dir,
+        "cache_dir": args.model_cache_dir,
     }
-    if args.model_name_or_path:
+    tokenizer_source = args.tokenizer_name or args.model_name_or_path
+    if tokenizer_source:
         tokenizer = AutoTokenizer.from_pretrained(
-            args.model_name_or_path, use_fast=not args.use_slow_tokenizer, **tokenizer_kwargs
+            tokenizer_source, use_fast=not args.use_slow_tokenizer, **tokenizer_kwargs
         )
     else:
         raise ValueError(
-            "You are instantiating a new tokenizer from scratch. This is not supported by this script."
-            "You can do it from another script, save it, and load it from here, using --tokenizer_name."
+            "No tokenizer source: set --tokenizer_name (e.g. microsoft/Phi-4-mini-instruct) when "
+            "--model_name_or_path points to a checkpoint directory without tokenizer files."
         )
 
     # Load and prepare model
@@ -150,6 +171,52 @@ def main():
 
     # >> replace self-attention module with ours (supports OPT, Llama, Qwen, Phi-4)
     decoder_info = replace_attention_modules(model, args)
+
+    # After the swap, decoder layout matches training (e.g. Phi OASIS attn_res_*).
+    # The first from_pretrained() could not place those keys (unused weights). Reload full
+    # checkpoint weights into the final module graph.
+    if args.model_name_or_path:
+        ckpt_dir = Path(args.model_name_or_path)
+        state_dict = None
+        st_single = ckpt_dir / "model.safetensors"
+        st_index = ckpt_dir / "model.safetensors.index.json"
+        bin_path = ckpt_dir / "pytorch_model.bin"
+        if st_single.is_file():
+            try:
+                from safetensors.torch import load_file
+
+                state_dict = load_file(str(st_single))
+            except ImportError:
+                logger.warning("safetensors not installed; skipping post-swap weight reload")
+        elif st_index.is_file():
+            try:
+                from safetensors.torch import load_file
+
+                with open(st_index) as f:
+                    weight_map = json.load(f)["weight_map"]
+                state_dict = {}
+                for shard in sorted(set(weight_map.values())):
+                    state_dict.update(load_file(str(ckpt_dir / shard)))
+            except ImportError:
+                logger.warning("safetensors not installed; skipping sharded checkpoint reload")
+        elif bin_path.is_file():
+            state_dict = torch.load(bin_path, map_location="cpu")
+        if state_dict:
+            load_result = model.load_state_dict(state_dict, strict=False)
+            if isinstance(load_result, tuple):
+                missing_keys, unexpected_keys = load_result
+            else:
+                missing_keys = load_result.missing_keys
+                unexpected_keys = load_result.unexpected_keys
+            logger.info(
+                "Post-swap checkpoint reload: missing_keys=%d unexpected_keys=%d",
+                len(missing_keys),
+                len(unexpected_keys),
+            )
+            if missing_keys:
+                logger.debug("First missing keys: %s", missing_keys[:15])
+            if unexpected_keys:
+                logger.debug("First unexpected keys: %s", unexpected_keys[:15])
 
     # Gating -> load the model again to load missing alpha (OPT only)
     if decoder_info["arch"] == "opt" and args.attn_gate_type != "none":
