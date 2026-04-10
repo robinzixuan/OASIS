@@ -1,8 +1,11 @@
 #!/bin/bash
 #===============================================================================
-# Phi-4 ? validate_clm.py (phi4_attention + replace_attention_modules)
+# Phi-4 validate_clm.py
 #
-# Defaults: PHI4_MODEL=microsoft/Phi-4-mini-instruct; override with export PHI4_MODEL=/path/to/local_ckpt
+# - Vanilla checkpoints (run_clm_ddp.py): default; same softmax as submit_phi4_vanilla_train.sh
+# - OASIS checkpoints (run_clm_oasis.py): export USE_PHI4_OASIS=1 and set CKPT_PATH to checkpoint dir
+#
+# Defaults: PHI4_HUB=microsoft/Phi-4-mini-instruct
 # Submit: sbatch /path/to/OASIS/OutEffHop_script/submit_phi4_validate.sh
 #===============================================================================
 
@@ -23,11 +26,19 @@
 set -euo pipefail
 
 #--------------- User config -------------------------------------------------
-PHI4_MODEL="${PHI4_MODEL:-microsoft/Phi-4-mini-instruct}"
+# Hub id for config + tokenizer (must match training); weights come from CKPT_PATH if USE_PHI4_OASIS=1
+PHI4_HUB="${PHI4_HUB:-microsoft/Phi-4-mini-instruct}"
+# Single-path eval (Hub or a full HF folder): still PHI4_MODEL for backward compatibility
+PHI4_MODEL="${PHI4_MODEL:-$PHI4_HUB}"
+USE_PHI4_OASIS="${USE_PHI4_OASIS:-0}"
+# Accelerate checkpoint dir (only when USE_PHI4_OASIS=1), e.g. .../checkpoints/checkpoint_200
+CKPT_PATH="${CKPT_PATH:-}"
 SCRATCH_ROOT="${SCRATCH_ROOT:-/scratch/${USER}/residual}"
+CACHE_ROOT="${CACHE_ROOT:-/scratch/${USER}/.cache/residual}"
 DATASET_SETUP="${DATASET_SETUP:-wikitext_2}"
+# Match submit_phi4_*_train.sh default unless you override (debug runs may use 256)
 BLOCK_SIZE="${BLOCK_SIZE:-512}"
-EVAL_BS="${EVAL_BS:-4}"
+EVAL_BS="${EVAL_BS:-1}"
 ATTN_SOFTMAX="${ATTN_SOFTMAX:-vanilla}"
 ATTN_RES_SOFTMAX="${ATTN_RES_SOFTMAX:-vanilla}"
 SEED="${SEED:-5678}"
@@ -48,8 +59,14 @@ fi
 export PYTHONUNBUFFERED=1
 export PYTHONNOUSERSITE=1
 export CUDA_VISIBLE_DEVICES=0
-export HF_HOME="${HF_HOME:-${SCRATCH_ROOT}/.hf_home}"
-mkdir -p "${HF_HOME}"
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-${CACHE_ROOT}}"
+export HF_HOME="${HF_HOME:-${CACHE_ROOT}/huggingface}"
+export TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-${HF_HOME}/transformers}"
+export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${HF_HOME}/datasets}"
+export TORCH_HOME="${TORCH_HOME:-${XDG_CACHE_HOME}/torch}"
+export MPLCONFIGDIR="${MPLCONFIGDIR:-${XDG_CACHE_HOME}/matplotlib}"
+export WANDB_DIR="${WANDB_DIR:-${CACHE_ROOT}/wandb}"
+mkdir -p "${XDG_CACHE_HOME}" "${HF_HOME}" "${TRANSFORMERS_CACHE}" "${HF_DATASETS_CACHE}" "${TORCH_HOME}" "${MPLCONFIGDIR}" "${WANDB_DIR}"
 
 # mentor?conda init + source ~/.bashrc?sbatch ????????hook ??
 set +e
@@ -88,13 +105,24 @@ export LANG=C.UTF-8
 _PP="$(realpath "${PWD}" 2>/dev/null || pwd -P)"
 export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}${_PP}"
 
-DATA_CACHE="${SCRATCH_ROOT}/.hf_data"
-MODEL_CACHE="${SCRATCH_ROOT}/.hf_cache"
+DATA_CACHE="${CACHE_ROOT}/phi4_validate/hf_data"
+MODEL_CACHE="${CACHE_ROOT}/phi4_validate/hf_cache"
 OUT_DIR="${SCRATCH_ROOT}/output_metrics/phi4_validate_${SLURM_JOB_ID:-local}"
 mkdir -p "${DATA_CACHE}" "${MODEL_CACHE}" "$(dirname "${OUT_DIR}")"
 
-# ????????????? mentor ??validate ??????????
+EXTRA_ARGS=()
+if [[ "${USE_PHI4_OASIS}" == "1" ]]; then
+  if [[ -z "${CKPT_PATH}" ]]; then
+    echo "USE_PHI4_OASIS=1 requires CKPT_PATH=/path/to/checkpoint_xxx"
+    exit 1
+  fi
+  EXTRA_ARGS+=(--phi4_oasis --config_name "${PHI4_HUB}" --tokenizer_name "${PHI4_HUB}" --model_name_or_path "${CKPT_PATH}")
+else
+  EXTRA_ARGS+=(--model_name_or_path "${PHI4_MODEL}")
+fi
+
 accelerate launch --config_file accelerate_configs/1gpu_no_mp.yaml validate_clm.py \
+  "${EXTRA_ARGS[@]}" \
   --seed "${SEED}" \
   --dataset_setup "${DATASET_SETUP}" \
   --preprocessing_num_workers 8 \
@@ -104,7 +132,6 @@ accelerate launch --config_file accelerate_configs/1gpu_no_mp.yaml validate_clm.
   --attn_res_softmax_fn "${ATTN_RES_SOFTMAX}" \
   --data_cache_dir "${DATA_CACHE}" \
   --model_cache_dir "${MODEL_CACHE}" \
-  --model_name_or_path "${PHI4_MODEL}" \
   --output_dir "${OUT_DIR}"
 
 echo "Done. Metrics under: ${OUT_DIR}"
