@@ -265,6 +265,15 @@ def parse_args():
         help="Path to a yaml file with model config modifications.",
     )
     parser.add_argument(
+        "--phi4_oasis",
+        action="store_true",
+        help=(
+            "Use Phi-4 layers from run_clm_oasis (phi4_oasis_attention + forward patch). "
+            "Set this when evaluating checkpoints trained with run_clm_oasis.py so "
+            "oasis_beta_raw and null-posterior paths match training."
+        ),
+    )
+    parser.add_argument(
         "--model_cache_dir",
         type=str,
         default="/local/mnt/workspace/.hf_cache",

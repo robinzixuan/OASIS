@@ -50,7 +50,7 @@ from transformers_language.utils import (
     pass_data_for_range_estimation,
     val_qparams,
 )
-from run_clm_ddp import get_decoder_components, replace_attention_modules
+from run_clm_ddp import get_decoder_components, replace_attention_modules as replace_attention_modules_standard
 
 logger = logging.getLogger("validate_clm")
 logging.basicConfig(
@@ -157,20 +157,32 @@ def main():
         )
 
     # Load and prepare model
+    load_kw = dict(
+        from_tf=bool(".ckpt" in (args.model_name_or_path or "")),
+        config=config,
+        low_cpu_mem_usage=args.low_cpu_mem_usage,
+        cache_dir=args.model_cache_dir,
+    )
+    if getattr(args, "phi4_oasis", False):
+        load_kw["attn_implementation"] = "eager"
+
     if args.model_name_or_path:
-        model = AutoModelForCausalLM.from_pretrained(
-            args.model_name_or_path,
-            from_tf=bool(".ckpt" in args.model_name_or_path),
-            config=config,
-            low_cpu_mem_usage=args.low_cpu_mem_usage,
-            cache_dir=args.model_cache_dir,
-        )
+        model = AutoModelForCausalLM.from_pretrained(args.model_name_or_path, **load_kw)
     else:
         logger.info("Training new model from scratch")
         model = AutoModelForCausalLM.from_config(config)
 
-    # >> replace self-attention module with ours (supports OPT, Llama, Qwen, Phi-4)
-    decoder_info = replace_attention_modules(model, args)
+    # >> replace self-attention / decoder layers (must match training script)
+    if getattr(args, "phi4_oasis", False):
+        from run_clm_oasis import (
+            patch_model_forward_for_oasis,
+            replace_attention_modules as replace_attention_modules_oasis,
+        )
+
+        decoder_info = replace_attention_modules_oasis(model, args)
+        patch_model_forward_for_oasis(model)
+    else:
+        decoder_info = replace_attention_modules_standard(model, args)
 
     # After the swap, decoder layout matches training (e.g. Phi OASIS attn_res_*).
     # The first from_pretrained() could not place those keys (unused weights). Reload full
@@ -214,9 +226,9 @@ def main():
                 len(unexpected_keys),
             )
             if missing_keys:
-                logger.debug("First missing keys: %s", missing_keys[:15])
+                logger.info("Missing keys (first 20): %s", missing_keys[:20])
             if unexpected_keys:
-                logger.debug("First unexpected keys: %s", unexpected_keys[:15])
+                logger.info("Unexpected keys (first 20): %s", unexpected_keys[:20])
 
     # Gating -> load the model again to load missing alpha (OPT only)
     if decoder_info["arch"] == "opt" and args.attn_gate_type != "none":
