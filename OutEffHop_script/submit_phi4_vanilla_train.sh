@@ -83,6 +83,13 @@ if [[ ${_CONDA_RC} -ne 0 ]]; then
   exit 1
 fi
 
+# Use the env's Python module entrypoint so Slurm never picks a broken ~/.local/bin/accelerate shebang.
+PY="${CONDA_PREFIX}/bin/python"
+if [[ ! -x "${PY}" ]]; then
+  echo "Missing python in active conda env: ${PY}"
+  exit 1
+fi
+
 if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
   if [[ -d "${SLURM_SUBMIT_DIR}/OutEffHop" ]]; then
     REPO_ROOT="${SLURM_SUBMIT_DIR}"
@@ -121,7 +128,7 @@ else
   TRACK_ARGS=(--run_name "${RUN_NAME}")
 fi
 
-accelerate launch --config_file accelerate_configs/1gpu_fp16.yaml run_clm_ddp.py \
+"${PY}" -m accelerate.commands.launch --config_file accelerate_configs/1gpu_fp16.yaml run_clm_ddp.py \
   "${TRACK_ARGS[@]}" \
   --pad_to_max_length \
   --wd_LN_gamma \
