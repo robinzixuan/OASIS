@@ -28,6 +28,7 @@ set -euo pipefail
 #--------------- User config -------------------------------------------------
 PHI4_MODEL="${PHI4_MODEL:-microsoft/Phi-4-mini-instruct}"
 SCRATCH_ROOT="${SCRATCH_ROOT:-/scratch/${USER}/residual}"
+CACHE_ROOT="${CACHE_ROOT:-/scratch/${USER}/.cache/residual}"
 OUTPUT_DIR_NAME="${OUTPUT_DIR_NAME:-oasis_phi4_${SLURM_JOB_ID:-local}}"
 DATASET_SETUP="${DATASET_SETUP:-wikitext_2}"
 
@@ -44,6 +45,8 @@ RUN_NAME="${RUN_NAME:-phi4_oasis_512}"
 
 WANDB_PROJECT="${WANDB_PROJECT:-residual}"
 WANDB_ENABLED="${WANDB_ENABLED:-false}"
+WANDB_ENTITY="${WANDB_ENTITY:-}"
+WANDB_MODE="${WANDB_MODE:-online}"
 #------------------------------------------------------------------------------
 
 module purge 2>/dev/null || true
@@ -59,8 +62,14 @@ fi
 export PYTHONUNBUFFERED=1
 export PYTHONNOUSERSITE=1
 export CUDA_VISIBLE_DEVICES=0
-export HF_HOME="${HF_HOME:-${SCRATCH_ROOT}/.hf_home}"
-mkdir -p "${HF_HOME}"
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-${CACHE_ROOT}}"
+export HF_HOME="${HF_HOME:-${CACHE_ROOT}/huggingface}"
+export TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-${HF_HOME}/transformers}"
+export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${HF_HOME}/datasets}"
+export TORCH_HOME="${TORCH_HOME:-${XDG_CACHE_HOME}/torch}"
+export MPLCONFIGDIR="${MPLCONFIGDIR:-${XDG_CACHE_HOME}/matplotlib}"
+export WANDB_DIR="${WANDB_DIR:-${CACHE_ROOT}/wandb}"
+mkdir -p "${XDG_CACHE_HOME}" "${HF_HOME}" "${TRANSFORMERS_CACHE}" "${HF_DATASETS_CACHE}" "${TORCH_HOME}" "${MPLCONFIGDIR}" "${WANDB_DIR}"
 
 set +e
 if command -v conda >/dev/null 2>&1; then
@@ -98,9 +107,13 @@ _PP="$(realpath "${PWD}" 2>/dev/null || pwd -P)"
 export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}${_PP}"
 export WANDB_PROJECT
 export WANDB_ENABLED
+export WANDB_MODE
+if [[ -n "${WANDB_ENTITY}" ]]; then
+  export WANDB_ENTITY
+fi
 
-DATA_CACHE="${SCRATCH_ROOT}/phi4_oasis/.hf_data"
-MODEL_CACHE="${SCRATCH_ROOT}/phi4_oasis/.hf_cache"
+DATA_CACHE="${CACHE_ROOT}/phi4_oasis/hf_data"
+MODEL_CACHE="${CACHE_ROOT}/phi4_oasis/hf_cache"
 OUTPUT_DIR="${SCRATCH_ROOT}/output/${OUTPUT_DIR_NAME}"
 mkdir -p "${DATA_CACHE}" "${MODEL_CACHE}" "${OUTPUT_DIR}"
 
