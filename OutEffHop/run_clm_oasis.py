@@ -347,9 +347,6 @@ def main():
     #     f" {gpus_per_node} allocated GPUs per node.", flush=True)
     
     args = parse_args()
-    if args.model_name_or_path is None and args.model_type is None and args.config_name is None:
-        args.model_name_or_path = DEFAULT_PHI4_HUB_ID
-        logger.info("Using default model: %s", DEFAULT_PHI4_HUB_ID)
 
     # convert dataset setup to an enum
     dataset_setup = DatasetSetups[args.dataset_setup]
@@ -470,6 +467,13 @@ def main():
 
     decoder_info = replace_attention_modules(model, args)
     patch_model_forward_for_oasis(model)
+
+    if getattr(args, "gradient_checkpointing", False):
+        if hasattr(model, "gradient_checkpointing_enable"):
+            model.gradient_checkpointing_enable()
+            logger.info("Gradient checkpointing enabled (lower activation memory).")
+        if hasattr(model, "config") and hasattr(model.config, "use_cache"):
+            model.config.use_cache = False
 
     # We resize the embeddings only when necessary to avoid index errors. If you are creating a model from scratch
     # on a small vocab and want a smaller embedding size, remove this test.

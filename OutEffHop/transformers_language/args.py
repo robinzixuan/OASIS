@@ -165,6 +165,11 @@ def parse_args():
         default=1,
         help="Number of updates steps to accumulate before performing a backward/update pass.",
     )
+    parser.add_argument(
+        "--gradient_checkpointing",
+        action="store_true",
+        help="Trade compute for less activation memory (recommended for large LMs with per-device BS=1).",
+    )
 
     #
     ## Regularization
