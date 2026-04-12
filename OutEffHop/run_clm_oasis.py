@@ -460,6 +460,7 @@ def main():
             low_cpu_mem_usage=args.low_cpu_mem_usage,
             cache_dir=args.model_cache_dir,
             attn_implementation="eager",
+            torch_dtype=torch.float16,
         )
     else:
         logger.info("Training new model from scratch")
