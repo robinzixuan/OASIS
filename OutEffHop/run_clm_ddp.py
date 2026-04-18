@@ -204,6 +204,127 @@ def replace_attention_modules(model, args):
     return decoder_info
 
 
+def patch_phi4_model_forward_for_attn_res(model):
+    """Patch Phi-3/Phi-4 backbone forward to propagate ``layer_outputs_history``.
+
+    ``Phi4DecoderLayerExtra`` only uses ``attn_res_*`` when ``layer_outputs_history`` is
+    provided; the stock HF ``Phi3Model.forward`` never passes it, so ``--attn_res_softmax_fn``
+    had no effect under ``run_clm_ddp``. This mirrors the history loop in
+    ``run_clm_oasis.patch_model_forward_for_oasis`` but without null-posterior tensors.
+
+    Idempotent: safe to call more than once on the same model.
+    """
+    from transformers.modeling_outputs import BaseModelOutputWithPast
+    from transformers.cache_utils import DynamicCache
+    from transformers.masking_utils import create_causal_mask
+
+    try:
+        from transformers.masking_utils import create_sliding_window_causal_mask
+    except ImportError:
+        create_sliding_window_causal_mask = None
+
+    base_model = model.model
+    if getattr(base_model.__class__, "_phi4_attn_res_patch", False):
+        logger.info("Phi-4 attn-res forward patch already applied; skipping.")
+        return
+    if getattr(model.config, "model_type", "") != "phi3":
+        logger.warning(
+            "patch_phi4_model_forward_for_attn_res: model_type=%r is not phi3; skipping.",
+            getattr(model.config, "model_type", None),
+        )
+        return
+
+    original_cls = base_model.__class__
+    is_qwen = hasattr(base_model, "has_sliding_layers")
+
+    class Phi4AttnResModelForward(original_cls):
+        _phi4_attn_res_patch = True
+
+        def forward(
+            self,
+            input_ids=None,
+            attention_mask=None,
+            position_ids=None,
+            past_key_values=None,
+            inputs_embeds=None,
+            cache_position=None,
+            use_cache=None,
+            **kwargs,
+        ):
+            if (input_ids is None) ^ (inputs_embeds is not None):
+                raise ValueError("You must specify exactly one of input_ids or inputs_embeds")
+
+            if inputs_embeds is None:
+                inputs_embeds = self.embed_tokens(input_ids)
+
+            if use_cache and past_key_values is None:
+                past_key_values = DynamicCache(config=self.config)
+
+            if cache_position is None:
+                past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
+                cache_position = torch.arange(
+                    past_seen_tokens, past_seen_tokens + inputs_embeds.shape[1], device=inputs_embeds.device
+                )
+
+            if position_ids is None:
+                position_ids = cache_position.unsqueeze(0)
+
+            mask_kwargs = {
+                "config": self.config,
+                "input_embeds": inputs_embeds,
+                "attention_mask": attention_mask,
+                "cache_position": cache_position,
+                "past_key_values": past_key_values,
+                "position_ids": position_ids,
+            }
+            causal_mask = create_causal_mask(**mask_kwargs)
+
+            if is_qwen:
+                causal_mask_mapping = {"full_attention": causal_mask}
+                if getattr(self, "has_sliding_layers", False) and create_sliding_window_causal_mask is not None:
+                    causal_mask_mapping["sliding_attention"] = create_sliding_window_causal_mask(**mask_kwargs)
+            else:
+                causal_mask_mapping = None
+
+            hidden_states = inputs_embeds
+            position_embeddings = self.rotary_emb(hidden_states, position_ids=position_ids)
+
+            layer_outputs_history = [hidden_states]
+
+            for decoder_layer in self.layers[: self.config.num_hidden_layers]:
+                if causal_mask_mapping is not None:
+                    layer_mask = causal_mask_mapping[decoder_layer.attention_type]
+                else:
+                    layer_mask = causal_mask
+
+                result = decoder_layer(
+                    hidden_states,
+                    attention_mask=layer_mask,
+                    position_ids=position_ids,
+                    past_key_values=past_key_values,
+                    cache_position=cache_position,
+                    position_embeddings=position_embeddings,
+                    layer_outputs_history=layer_outputs_history,
+                    **kwargs,
+                )
+                if isinstance(result, tuple):
+                    if len(result) == 2:
+                        hidden_states, layer_outputs_history = result
+                    else:
+                        hidden_states, layer_outputs_history, _null_hist = result
+                else:
+                    hidden_states = result
+
+            hidden_states = self.norm(hidden_states)
+            return BaseModelOutputWithPast(
+                last_hidden_state=hidden_states,
+                past_key_values=past_key_values,
+            )
+
+    base_model.__class__ = Phi4AttnResModelForward
+    logger.info("Phi-4: patched %s forward with layer_outputs_history (run_clm_ddp).", original_cls.__name__)
+
+
 def main():
     # rank          = int(os.environ["SLURM_PROCID"])
     # world_size    = int(os.environ["WORLD_SIZE"])
@@ -295,6 +416,11 @@ def main():
     logger.info("HuggingFace config after user changes:")
     logger.info(str(config))
 
+    # Phi-4 uses model_type "phi3". Custom token softmax (Phi4AttentionWithExtras) only runs
+    # through eager_attention_forward; SDPA/Flash ignores ``softmax_fn``.
+    if getattr(config, "model_type", "") == "phi3":
+        config._attn_implementation = "eager"
+
     # Load tokenizer
     tokenizer_kwargs = {
         "cache_dir": args.model_cache_dir,
@@ -314,19 +440,24 @@ def main():
         )
 
     # Load and prepare model
+    _from_pretrained_kw = dict(
+        from_tf=bool(".ckpt" in (args.model_name_or_path or "")),
+        config=config,
+        low_cpu_mem_usage=args.low_cpu_mem_usage,
+        cache_dir=args.model_cache_dir,
+    )
+    if getattr(config, "model_type", "") == "phi3":
+        _from_pretrained_kw["attn_implementation"] = "eager"
+
     if args.model_name_or_path:
-        model = AutoModelForCausalLM.from_pretrained(
-            args.model_name_or_path,
-            from_tf=bool(".ckpt" in args.model_name_or_path),
-            config=config,
-            low_cpu_mem_usage=args.low_cpu_mem_usage,
-            cache_dir=args.model_cache_dir,
-        )
+        model = AutoModelForCausalLM.from_pretrained(args.model_name_or_path, **_from_pretrained_kw)
     else:
         logger.info("Training new model from scratch")
         model = AutoModelForCausalLM.from_config(config)
 
     decoder_info = replace_attention_modules(model, args)
+    if decoder_info["arch"] == "phi4":
+        patch_phi4_model_forward_for_attn_res(model)
 
     if getattr(args, "gradient_checkpointing", False):
         if hasattr(model, "gradient_checkpointing_enable"):

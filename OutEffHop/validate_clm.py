@@ -50,7 +50,11 @@ from transformers_language.utils import (
     pass_data_for_range_estimation,
     val_qparams,
 )
-from run_clm_ddp import get_decoder_components, replace_attention_modules as replace_attention_modules_standard
+from run_clm_ddp import (
+    get_decoder_components,
+    patch_phi4_model_forward_for_attn_res,
+    replace_attention_modules as replace_attention_modules_standard,
+)
 
 logger = logging.getLogger("validate_clm")
 logging.basicConfig(
@@ -141,6 +145,10 @@ def main():
     logger.info("HuggingFace config after user changes:")
     logger.info(str(config))
 
+    # Phi-4 (phi3): match run_clm_ddp — eager attention so custom token softmax runs; attn_res needs patched forward.
+    if getattr(config, "model_type", "") == "phi3":
+        config._attn_implementation = "eager"
+
     # Load tokenizer (Accelerate checkpoints often omit tokenizer files — use --tokenizer_name hub id)
     tokenizer_kwargs = {
         "cache_dir": args.model_cache_dir,
@@ -163,7 +171,7 @@ def main():
         low_cpu_mem_usage=args.low_cpu_mem_usage,
         cache_dir=args.model_cache_dir,
     )
-    if getattr(args, "phi4_oasis", False):
+    if getattr(config, "model_type", "") == "phi3":
         load_kw["attn_implementation"] = "eager"
 
     if args.model_name_or_path:
@@ -183,6 +191,8 @@ def main():
         patch_model_forward_for_oasis(model)
     else:
         decoder_info = replace_attention_modules_standard(model, args)
+        if getattr(config, "model_type", "") == "phi3" and not getattr(args, "phi4_oasis", False):
+            patch_phi4_model_forward_for_attn_res(model)
 
     # After the swap, decoder layout matches training (e.g. Phi OASIS attn_res_*).
     # The first from_pretrained() could not place those keys (unused weights). Reload full
