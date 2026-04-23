@@ -337,6 +337,7 @@ def main():
             config=config,
             low_cpu_mem_usage=args.low_cpu_mem_usage,
             cache_dir=args.model_cache_dir,
+            torch_dtype=torch.bfloat16,
             **_from_pretrained_extra,
         )
     else:
