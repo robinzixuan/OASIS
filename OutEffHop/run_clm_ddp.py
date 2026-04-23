@@ -520,6 +520,19 @@ def main():
                 desc=f"Grouping texts in chunks of {block_size}",
             )
 
+        # Persist the fully-tokenized+grouped dataset to disk so subsequent runs
+        # take the fast `load_from_disk` path and skip re-tokenization entirely.
+        # Only save when the fast-path directory is actually used (bookcorpus_and_wiki).
+        if dataset_setup == DatasetSetups.bookcorpus_and_wiki:
+            with accelerator.main_process_first():
+                if accelerator.is_main_process and not tokenized_book_wiki_path.exists():
+                    accelerator.print(
+                        f"Saving tokenized dataset to {str(tokenized_book_wiki_path)} "
+                        f"for fast reload on future runs"
+                    )
+                    tokenized_book_wiki_path.parent.mkdir(parents=True, exist_ok=True)
+                    tokenized_datasets.save_to_disk(str(tokenized_book_wiki_path))
+
         # <end elif: do tokenization>
 
     if dataset_setup == DatasetSetups.bookcorpus_and_wiki:
