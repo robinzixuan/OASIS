@@ -798,6 +798,47 @@ def main():
     decoder_info = get_decoder_components(model)
     num_layers = len(decoder_info["layers"])
 
+    # Intermediate evaluation helper (triggered by --eval_steps). Reports perplexity +
+    # eval_loss only; does not touch act_inf_norms/act_kurtoses used by the final metrics
+    # dump, which remain driven by the end-of-epoch evaluation block below.
+    def _run_intermediate_eval(epoch_idx, step_idx, cur_total_loss, cur_N_total_loss):
+        was_training = model.training
+        model.eval()
+        losses_ = []
+        with torch.no_grad():
+            for batch_idx_, batch_ in enumerate(eval_dataloader):
+                outputs_ = model(**batch_)
+                loss_ = outputs_.loss
+                loss_ = accelerator.gather_for_metrics(
+                    loss_.repeat(args.per_device_eval_batch_size)
+                )
+                losses_.append(loss_)
+                if batch_idx_ >= 1024:
+                    break
+        losses_cat = torch.cat(losses_)
+        try:
+            eval_loss_ = torch.mean(losses_cat)
+            perplexity_ = math.exp(eval_loss_)
+        except OverflowError:
+            eval_loss_ = torch.tensor(float("inf"))
+            perplexity_ = float("inf")
+        logger.info(
+            f"[eval_steps] epoch {epoch_idx} step {step_idx}: "
+            f"perplexity: {perplexity_} eval_loss: {eval_loss_}"
+        )
+        if args.with_tracking:
+            log_metrics_ = {
+                "perplexity": perplexity_,
+                "eval_loss": eval_loss_,
+                "epoch": epoch_idx,
+                "step": step_idx,
+            }
+            if cur_N_total_loss > 0 and cur_total_loss > 0:
+                log_metrics_["train_loss"] = cur_total_loss / cur_N_total_loss
+            accelerator.log(log_metrics_, step=step_idx)
+        if was_training:
+            model.train()
+
     # ** Training loop **
     for epoch in range(starting_epoch, args.num_train_epochs):
         model.train()
@@ -876,6 +917,20 @@ def main():
 
                         # save states for model, optimizer, scheduler, scaler, RNG
                         accelerator.save_state(output_dir)
+
+                # mid-training evaluation (perplexity only)
+                if (
+                    getattr(args, "eval_steps", None) is not None
+                    and args.eval_steps > 0
+                    and completed_steps > 0
+                    and completed_steps % args.eval_steps == 0
+                ):
+                    _run_intermediate_eval(
+                        epoch,
+                        completed_steps,
+                        total_loss if args.with_tracking else 0,
+                        N_total_loss if args.with_tracking else 0,
+                    )
 
                 # TB log scalars
                 if (

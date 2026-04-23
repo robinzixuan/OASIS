@@ -198,6 +198,13 @@ def parse_args():
         default=2,
     )
     parser.add_argument(
+        "--eval_steps",
+        type=int,
+        default=None,
+        help="If set, run a lightweight evaluation (perplexity + eval_loss) every N optimizer "
+        "steps in addition to the end-of-epoch evaluation. Disabled when None or <= 0.",
+    )
+    parser.add_argument(
         "--resume_from_checkpoint",
         type=str,
         default=None,
