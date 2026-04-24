@@ -3,7 +3,7 @@ module load cuda/12.6.2-gcc-12.4.0
 export HF_HOME="/scratch/hlv8980/.cache/" 
 export WANDB_PROJECT="residual"
 export WANDB_ENABLED="true"
-
+export HF_TOKEN="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"
 source ~/.bashrc && conda activate outlier && which python && python -V
 
 
@@ -36,14 +36,14 @@ export CUDA_VISIBLE_DEVICES=0
 # --block_size 512 \
 # --learning_rate 0.0004 \
 # --lr_scheduler_type linear \
-# --max_train_steps 100000 \
+# --max_train_steps 500 \
 # --num_warmup_steps 2000 \
 # --per_device_train_batch_size 6 \
 # --per_device_eval_batch_size 6 \
 # --gradient_accumulation_steps 32 \
 # --max_grad_norm 1.0 \
 # --weight_decay 0.1 \
-# --checkpointing_steps 500 \
+# --checkpointing_steps 100 \
 # --tb_scalar_log_interval 20000 \
 # --tb_hist_log_interval 40000 \
 # --model_name_or_path meta-llama/Llama-3.2-1B \
@@ -86,22 +86,60 @@ export CUDA_VISIBLE_DEVICES=0
 # --output_dir /scratch/hlv8980/residual/output/oasis_qwen3_0.6b 
 
 
-~/.conda/envs/outlier/bin/python -m accelerate.commands.launch --config_file accelerate_configs/1gpu_fp16.yaml validate_clm.py \
---quantize \
---quant_setup fp32_head \
---ranges_acts running_minmax \
---qmethod_acts asymmetric_uniform \
---percentile 99.999 \
---est_num_batches 4 \
+# ~/.conda/envs/outlier/bin/python -m accelerate.commands.launch --config_file accelerate_configs/1gpu_fp16.yaml validate_clm.py \
+# --quantize \
+# --quant_setup fp32_head \
+# --ranges_acts running_minmax \
+# --qmethod_acts asymmetric_uniform \
+# --percentile 99.999 \
+# --est_num_batches 4 \
+# --seed 6789 \
+# --dataset_setup bookcorpus_and_wiki \
+# --preprocessing_num_workers 16 \
+# --model_type llama \
+# --block_size 512 \
+# --per_device_eval_batch_size 4 \
+# --attn_softmax vanilla \
+# --attn_res_softmax_fn vanilla \
+# --data_cache_dir /scratch/hlv8980/residual/qwen/.hf_data \
+# --model_cache_dir /scratch/hlv8980/residual/qwen/.hf_cache \
+# --model_name_or_path /scratch/hlv8980/residual/output/vanilla_qwen3_0.6b/ \
+# --output_dir  output_metrics/vanilla_qwen
+
+
+# ~/.conda/envs/outlier/bin/python -m accelerate.commands.launch --config_file accelerate_configs/1gpu_fp16.yaml validate_clm_oasis.py \
+# --quantize \
+# --quant_setup fp32_head \
+# --ranges_acts running_minmax \
+# --qmethod_acts asymmetric_uniform \
+# --percentile 99.999 \
+# --est_num_batches 4 \
+# --seed 6789 \
+# --dataset_setup bookcorpus_and_wiki \
+# --preprocessing_num_workers 8 \
+# --model_type llama \
+# --block_size 512 \
+# --per_device_eval_batch_size 32 \
+# --attn_softmax sparsemax \
+# --attn_res_softmax_fn sparsemax \
+# --data_cache_dir /scratch/hlv8980/residual/.hf_data \
+# --model_cache_dir /scratch/hlv8980/residual/.hf_cache \
+# --model_name_or_path /scratch/hlv8980/residual/output/oasis_llama3_sparsemax_xc \
+# --output_dir output_metrics/oasis_llama3_sparsemax_quantized
+
+
+
+~/.conda/envs/outlier/bin/python -m accelerate.commands.launch --config_file accelerate_configs/1gpu_fp16.yaml validate_clm_oasis.py \
 --seed 6789 \
 --dataset_setup bookcorpus_and_wiki \
---preprocessing_num_workers 16 \
+--preprocessing_num_workers 8 \
 --model_type llama \
 --block_size 512 \
---per_device_eval_batch_size 4 \
---attn_softmax vanilla \
---attn_res_softmax_fn vanilla \
---data_cache_dir /scratch/hlv8980/residual/qwen/.hf_data \
---model_cache_dir /scratch/hlv8980/residual/qwen/.hf_cache \
---model_name_or_path /scratch/hlv8980/residual/output/vanilla_qwen3_0.6b/ \
---output_dir  output_metrics/vanilla_qwen
+--per_device_eval_batch_size 8 \
+--attn_softmax sparsemax \
+--attn_res_softmax_fn sparsemax \
+--data_cache_dir /scratch/hlv8980/residual/.hf_data \
+--model_cache_dir /scratch/hlv8980/residual/.hf_cache \
+--model_name_or_path /scratch/hlv8980/residual/output/oasis_llama3_sparsemax_xc \
+--output_dir output_metrics/oasis_llama3_sparsemax
+

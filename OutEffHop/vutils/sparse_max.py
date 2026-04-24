@@ -38,15 +38,17 @@ def unflatten_all_but_nth_dim(ctx, x: torch.Tensor):
 class Sparsemax(nn.Module):
     __constants__ = ["dim"]
 
-    def __init__(self, dim=-1):
+    def __init__(self, dim=-1, dtype=None):
         """
         Sparsemax class as seen in https://arxiv.org/pdf/1602.02068.pdf
         Parameters
         ----------
         dim: The dimension we want to cast the operation over. Default -1
+        dtype: Optional dtype to cast input before computation. Default None
         """
         super(Sparsemax, self).__init__()
         self.dim = dim
+        self.dtype = dtype
 
     def __setstate__(self, state):
         self.__dict__.update(state)
@@ -54,7 +56,7 @@ class Sparsemax(nn.Module):
             self.dim = None
 
     def forward(self, input):
-        a =  SparsemaxFunction.apply(input, self.dim)
+        a = SparsemaxFunction.apply(input, self.dim, self.dtype)
         return a
 
     def extra_repr(self):
@@ -63,12 +65,16 @@ class Sparsemax(nn.Module):
 
 class SparsemaxFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, input: torch.Tensor, dim: int = -1):
+    def forward(ctx, input: torch.Tensor, dim: int = -1, dtype=None):
         input_dim = input.dim()
         if input_dim <= dim or dim < -input_dim:
             raise IndexError(
                 f"Dimension out of range (expected to be in range of [-{input_dim}, {input_dim - 1}], but got {dim})"
             )
+
+        # Cast to dtype if specified (like F.softmax dtype argument)
+        if dtype is not None:
+            input = input.to(dtype)
 
         # Save operating dimension to context
         ctx.needs_reshaping = input_dim > 2
@@ -125,4 +131,4 @@ class SparsemaxFunction(torch.autograd.Function):
         if ctx.needs_reshaping:
             ctx, grad_input = unflatten_all_but_nth_dim(ctx, grad_input)
 
-        return grad_input, None
+        return grad_input, None, None

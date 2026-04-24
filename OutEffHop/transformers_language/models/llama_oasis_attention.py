@@ -50,7 +50,12 @@ def eager_attention_forward(
         attn_weights = attn_weights + attention_mask
 
     # Compute softmax in float32 for numerical stability (bfloat16 causes NaN)
-    attn_weights = softmax_fn(attn_weights.float(), dim=-1, dtype=torch.float32)
+    attn_weights_fp32 = attn_weights.float()
+    try:
+        attn_weights = softmax_fn(attn_weights_fp32, dim=-1, dtype=torch.float32)
+    except TypeError:
+        # entmax15/sparsemax do not accept dtype kwarg
+        attn_weights = softmax_fn(attn_weights_fp32, dim=-1)
 
     # OASIS: per-head null posterior = mass routed to null space (before dropout)
     # For softmax_1: sum < 1, so null_posterior > 0; for standard softmax: sum = 1, null_posterior = 0
@@ -233,7 +238,10 @@ class AttentionResidual(nn.Module):
         scores = scores.clamp(min=-50.0, max=50.0)
 
         # Depth-Softmax (or depth-Softmax_1 when attn_res_softmax_fn = softmax_1)
-        weights = self.attn_res_softmax_fn(scores.float(), dim=-1, dtype=torch.float32)  # (B, T, L)
+        try:
+            weights = self.attn_res_softmax_fn(scores.float(), dim=-1, dtype=torch.float32)  # (B, T, L)
+        except TypeError:
+            weights = self.attn_res_softmax_fn(scores.float(), dim=-1)
 
         # Weighted sum: (B, T, D)
         aggregated = torch.einsum("btl,btld->btd", weights, stacked)

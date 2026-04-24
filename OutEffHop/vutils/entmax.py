@@ -183,7 +183,7 @@ class Entmax15Function(Function):
         return dX, None, None
 
 
-def sparsemax(X, dim=-1, k=None):
+def sparsemax(X, dim=-1, k=None, dtype=None):
     """sparsemax: normalizing sparse transform (a la softmax).
     Solves the projection:
         min_p ||x - p||_2   s.t.    p >= 0, sum(p) == 1.

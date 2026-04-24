@@ -23,6 +23,7 @@ SOFTMAX_MAPPING = {
     "vanilla": torch.nn.functional.softmax,
     "softmax1": softmax_1,
     "entmax":entmax15,
+    "sparsemax":lambda x, dim=-1: Sparsemax(dim=dim)(x),
     # Clipped softmax
     "clipped(0:1.0003)": partial(clipped_softmax, gamma=0, eta=1.0003),
     "clipped(0:1.001)": partial(clipped_softmax, gamma=0, eta=1.001),

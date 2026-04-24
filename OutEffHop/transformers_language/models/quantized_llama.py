@@ -81,7 +81,10 @@ class QuantizedLlamaAttentionWithExtras(QuantizedModel):
             attn_weights = attn_weights + attention_mask
 
         # softmax
-        attn_weights = self.softmax_fn(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
+        try:
+            attn_weights = self.softmax_fn(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
+        except TypeError:
+            attn_weights = self.softmax_fn(attn_weights.float(), dim=-1).to(query_states.dtype)
         attn_weights = self.attn_probs_act_quantizer(attn_weights)
         attn_weights = nn.functional.dropout(attn_weights, p=self.attention_dropout, training=self.training)
 
@@ -262,6 +265,19 @@ class QuantizedLlamaModel(QuantizedModel):
         hidden_states = inputs_embeds
         position_embeddings = self.rotary_emb(hidden_states, position_ids=position_ids)
 
+        # Convert 2D attention_mask (B, S) to 4D causal mask (B, 1, S, S)
+        if attention_mask is not None and attention_mask.dim() == 2:
+            batch_size, seq_length = attention_mask.shape
+            causal_mask = torch.triu(
+                torch.full((seq_length, seq_length), float("-inf"), device=hidden_states.device, dtype=hidden_states.dtype),
+                diagonal=1,
+            )
+            # Expand padding mask: (B, 1, 1, S)
+            padding_mask = attention_mask[:, None, None, :].to(dtype=hidden_states.dtype)
+            padding_mask = (1.0 - padding_mask) * float("-inf")
+            # Combine: (B, 1, S, S)
+            attention_mask = causal_mask[None, None, :, :] + padding_mask
+
         all_hidden_states = () if output_hidden_states else None
 
         for decoder_layer in self.layers:
@@ -296,6 +312,7 @@ class QuantizedLlamaModel(QuantizedModel):
 class QuantizedLlamaForCausalLM(QuantizedModel, PreTrainedModel):
     def __init__(self, org_model, quant_setup=None, **quant_params):
         self.config = org_model.config
+        self.config._attn_implementation = "eager"
         QuantizedModel()
         PreTrainedModel.__init__(self, self.config)
 

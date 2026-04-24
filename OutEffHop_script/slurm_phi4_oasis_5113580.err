@@ -1,0 +1,424 @@
+/home/hlv8980/.conda/envs/outlier/lib/python3.9/site-packages/transformers/utils/hub.py:110: FutureWarning: Using `TRANSFORMERS_CACHE` is deprecated and will be removed in v5 of Transformers. Use `HF_HOME` instead.
+  warnings.warn(
+Detected kernel version 4.18.0, which is below the recommended minimum of 5.5.0; this can cause the process to hang. It is recommended to upgrade the kernel to the minimum version or higher.
+04/12/2026 01:43:00 - INFO - run_clm - Distributed environment: NO
+Num processes: 1
+Process index: 0
+Local process index: 0
+Device: cuda
+
+Mixed precision type: fp16
+
+loading configuration file config.json from cache at /scratch/hlv8980/.cache/residual/phi4_oasis/hf_cache/models--microsoft--Phi-4-mini-instruct/snapshots/cfbefacb99257ffa30c83adab238a50856ac3083/config.json
+Model config Phi3Config {
+  "architectures": [
+    "Phi3ForCausalLM"
+  ],
+  "attention_bias": false,
+  "attention_dropout": 0.0,
+  "auto_map": {
+    "AutoConfig": "configuration_phi3.Phi3Config",
+    "AutoModelForCausalLM": "modeling_phi3.Phi3ForCausalLM",
+    "AutoTokenizer": "Xenova/gpt-4o"
+  },
+  "bos_token_id": 199999,
+  "dtype": "bfloat16",
+  "embd_pdrop": 0.0,
+  "eos_token_id": 199999,
+  "full_attn_mod": 1,
+  "hidden_act": "silu",
+  "hidden_size": 3072,
+  "initializer_range": 0.02,
+  "intermediate_size": 8192,
+  "interpolate_factor": 1,
+  "lm_head_bias": false,
+  "max_position_embeddings": 131072,
+  "mlp_bias": false,
+  "model_type": "phi3",
+  "num_attention_heads": 24,
+  "num_hidden_layers": 32,
+  "num_key_value_heads": 8,
+  "original_max_position_embeddings": 4096,
+  "pad_token_id": 199999,
+  "partial_rotary_factor": 0.75,
+  "resid_pdrop": 0.0,
+  "rms_norm_eps": 1e-05,
+  "rope_scaling": {
+    "long_factor": [
+      1,
+      1.118320672,
+      1.250641126,
+      1.398617824,
+      1.564103225,
+      1.74916897,
+      1.956131817,
+      2.187582649,
+      2.446418898,
+      2.735880826,
+      3.059592084,
+      3.421605075,
+      3.826451687,
+      4.279200023,
+      4.785517845,
+      5.351743533,
+      5.984965424,
+      6.693110555,
+      7.485043894,
+      8.370679318,
+      9.36110372,
+      10.4687158,
+      11.70738129,
+      13.09260651,
+      14.64173252,
+      16.37415215,
+      18.31155283,
+      20.47818807,
+      22.90118105,
+      25.61086418,
+      28.64115884,
+      32.03,
+      32.1,
+      32.13,
+      32.23,
+      32.6,
+      32.61,
+      32.64,
+      32.66,
+      32.7,
+      32.71,
+      32.93,
+      32.97,
+      33.28,
+      33.49,
+      33.5,
+      44.16,
+      47.77
+    ],
+    "short_factor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "type": "longrope"
+  },
+  "rope_theta": 10000.0,
+  "sliding_window": 262144,
+  "tie_word_embeddings": true,
+  "transformers_version": "4.57.6",
+  "use_cache": true,
+  "vocab_size": 200064
+}
+
+04/12/2026 01:43:01 - INFO - run_clm - HuggingFace config after user changes:
+04/12/2026 01:43:01 - INFO - run_clm - Phi3Config {
+  "architectures": [
+    "Phi3ForCausalLM"
+  ],
+  "attention_bias": false,
+  "attention_dropout": 0.0,
+  "auto_map": {
+    "AutoConfig": "configuration_phi3.Phi3Config",
+    "AutoModelForCausalLM": "modeling_phi3.Phi3ForCausalLM",
+    "AutoTokenizer": "Xenova/gpt-4o"
+  },
+  "bos_token_id": 199999,
+  "dtype": "bfloat16",
+  "embd_pdrop": 0.0,
+  "eos_token_id": 199999,
+  "full_attn_mod": 1,
+  "hidden_act": "silu",
+  "hidden_size": 3072,
+  "initializer_range": 0.02,
+  "intermediate_size": 8192,
+  "interpolate_factor": 1,
+  "lm_head_bias": false,
+  "max_position_embeddings": 131072,
+  "mlp_bias": false,
+  "model_type": "phi3",
+  "num_attention_heads": 24,
+  "num_hidden_layers": 32,
+  "num_key_value_heads": 8,
+  "original_max_position_embeddings": 4096,
+  "pad_token_id": 199999,
+  "partial_rotary_factor": 0.75,
+  "resid_pdrop": 0.0,
+  "rms_norm_eps": 1e-05,
+  "rope_scaling": {
+    "long_factor": [
+      1,
+      1.118320672,
+      1.250641126,
+      1.398617824,
+      1.564103225,
+      1.74916897,
+      1.956131817,
+      2.187582649,
+      2.446418898,
+      2.735880826,
+      3.059592084,
+      3.421605075,
+      3.826451687,
+      4.279200023,
+      4.785517845,
+      5.351743533,
+      5.984965424,
+      6.693110555,
+      7.485043894,
+      8.370679318,
+      9.36110372,
+      10.4687158,
+      11.70738129,
+      13.09260651,
+      14.64173252,
+      16.37415215,
+      18.31155283,
+      20.47818807,
+      22.90118105,
+      25.61086418,
+      28.64115884,
+      32.03,
+      32.1,
+      32.13,
+      32.23,
+      32.6,
+      32.61,
+      32.64,
+      32.66,
+      32.7,
+      32.71,
+      32.93,
+      32.97,
+      33.28,
+      33.49,
+      33.5,
+      44.16,
+      47.77
+    ],
+    "short_factor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "type": "longrope"
+  },
+  "rope_theta": 10000.0,
+  "sliding_window": 262144,
+  "tie_word_embeddings": true,
+  "transformers_version": "4.57.6",
+  "use_cache": true,
+  "vocab_size": 200064
+}
+
+loading file vocab.json from cache at /scratch/hlv8980/.cache/residual/phi4_oasis/hf_cache/models--microsoft--Phi-4-mini-instruct/snapshots/cfbefacb99257ffa30c83adab238a50856ac3083/vocab.json
+loading file merges.txt from cache at /scratch/hlv8980/.cache/residual/phi4_oasis/hf_cache/models--microsoft--Phi-4-mini-instruct/snapshots/cfbefacb99257ffa30c83adab238a50856ac3083/merges.txt
+loading file tokenizer.json from cache at /scratch/hlv8980/.cache/residual/phi4_oasis/hf_cache/models--microsoft--Phi-4-mini-instruct/snapshots/cfbefacb99257ffa30c83adab238a50856ac3083/tokenizer.json
+loading file added_tokens.json from cache at /scratch/hlv8980/.cache/residual/phi4_oasis/hf_cache/models--microsoft--Phi-4-mini-instruct/snapshots/cfbefacb99257ffa30c83adab238a50856ac3083/added_tokens.json
+loading file special_tokens_map.json from cache at /scratch/hlv8980/.cache/residual/phi4_oasis/hf_cache/models--microsoft--Phi-4-mini-instruct/snapshots/cfbefacb99257ffa30c83adab238a50856ac3083/special_tokens_map.json
+loading file tokenizer_config.json from cache at /scratch/hlv8980/.cache/residual/phi4_oasis/hf_cache/models--microsoft--Phi-4-mini-instruct/snapshots/cfbefacb99257ffa30c83adab238a50856ac3083/tokenizer_config.json
+loading file chat_template.jinja from cache at None
+Special tokens have been added in the vocabulary, make sure the associated word embeddings are fine-tuned or trained.
+loading weights file model.safetensors from cache at /scratch/hlv8980/.cache/residual/phi4_oasis/hf_cache/models--microsoft--Phi-4-mini-instruct/snapshots/cfbefacb99257ffa30c83adab238a50856ac3083/model.safetensors.index.json
+Generate config GenerationConfig {
+  "bos_token_id": 199999,
+  "eos_token_id": 199999,
+  "pad_token_id": 199999
+}
+
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:05<00:05,  5.12s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:07<00:00,  3.79s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:07<00:00,  3.99s/it]
+loading configuration file generation_config.json from cache at /scratch/hlv8980/.cache/residual/phi4_oasis/hf_cache/models--microsoft--Phi-4-mini-instruct/snapshots/cfbefacb99257ffa30c83adab238a50856ac3083/generation_config.json
+Generate config GenerationConfig {
+  "bos_token_id": 199999,
+  "eos_token_id": [
+    200020,
+    199999
+  ],
+  "pad_token_id": 199999
+}
+
+Could not locate the custom_generate/generate.py inside microsoft/Phi-4-mini-instruct.
+04/12/2026 01:43:26 - INFO - run_clm - OASIS: patched Phi3Model forward with history propagation
+04/12/2026 01:43:26 - INFO - run_clm - Model:
+04/12/2026 01:43:26 - INFO - run_clm - Phi3ForCausalLM(
+  (model): OASISModelForward(
+    (embed_tokens): Embedding(200064, 3072, padding_idx=199999)
+    (layers): ModuleList(
+      (0-31): 32 x Phi4DecoderLayerExtra(
+        (self_attn): Phi4AttentionWithExtras(
+          (o_proj): Linear(in_features=3072, out_features=3072, bias=False)
+          (qkv_proj): Linear(in_features=3072, out_features=5120, bias=False)
+        )
+        (mlp): Phi3MLP(
+          (gate_up_proj): Linear(in_features=3072, out_features=16384, bias=False)
+          (down_proj): Linear(in_features=8192, out_features=3072, bias=False)
+          (activation_fn): SiLUActivation()
+        )
+        (input_layernorm): Phi3RMSNorm((3072,), eps=1e-05)
+        (post_attention_layernorm): Phi3RMSNorm((3072,), eps=1e-05)
+        (resid_attn_dropout): Dropout(p=0.0, inplace=False)
+        (resid_mlp_dropout): Dropout(p=0.0, inplace=False)
+        (attn_res_sa): AttentionResidual(
+          (q_proj): Linear(in_features=3072, out_features=768, bias=False)
+          (k_proj): Linear(in_features=3072, out_features=768, bias=False)
+        )
+        (attn_res_mlp): AttentionResidual(
+          (q_proj): Linear(in_features=3072, out_features=768, bias=False)
+          (k_proj): Linear(in_features=3072, out_features=768, bias=False)
+        )
+      )
+    )
+    (norm): Phi3RMSNorm((3072,), eps=1e-05)
+    (rotary_emb): Phi3RotaryEmbedding()
+  )
+  (lm_head): Linear(in_features=3072, out_features=200064, bias=False)
+)
+04/12/2026 01:43:29 - INFO - run_clm - 
+Number of parameters:
+	* Embeddings:	614596608
+	* Decoder:	3523415168
+	* Head:	614596608
+	= Total (pre-training):	4752608384
+	= Total (decoder only):	4138011776
+
+04/12/2026 01:43:32 - INFO - run_clm - Sample 7028 of the training set: {'input_ids': [887, 623, 117601, 382, 5181, 656, 261, 23013, 1366, 81884, 24223, 1366, 114288, 326, 261, 42576, 7342, 887, 16344, 316, 478, 4250, 1854, 108849, 328, 79595, 461, 82, 26494, 11853, 1366, 18020, 104369, 306, 261, 12213, 977, 935, 23206, 1366, 1118, 1770, 2491, 316, 413, 96811, 328, 13266, 22306, 887, 46647, 81540, 277, 156169, 328, 12494, 14225, 1776, 13394, 290, 7880, 324, 472, 392, 1869, 13266, 22306, 326, 67448, 759, 12, 31, 108447, 392, 887, 124048, 28138, 328, 13688, 409, 3332, 19700, 484, 392, 37198, 13007, 392, 382, 18958, 656, 82275, 461, 82, 392, 151085, 2896, 392, 350, 220, 3204, 18, 1546, 887, 57499, 47290, 328, 290, 77447, 11628, 2927, 2905, 11223, 290, 7117, 316, 31807, 887, 623, 9660, 328, 392, 37198, 13007, 392, 119705, 2846, 3316, 887, 1225, 8895, 37238, 1078, 18020, 16054, 1232, 39802, 316, 2304, 1277, 1335, 20119, 813, 484, 1023, 665, 679, 3316, 887, 17081, 290, 99926, 1366, 501, 37818, 6370, 712, 392, 69449, 2308, 10120, 1632, 461, 82, 717, 44154, 820, 6214, 813, 581, 665, 1520, 12418, 3047, 820, 2545, 1879, 98046, 3508, 668, 2966, 21528, 395, 481, 820, 42236, 402, 2344, 328, 481, 820, 61463, 6772, 326, 842, 328, 481, 820, 24086, 357, 1761, 1412, 316, 621, 820, 9024, 461, 82, 1327, 2304, 1039, 20119, 1277, 392, 887, 793, 314, 314, 105997, 314, 314, 793, 392, 37198, 13007, 392, 132376, 8841, 7042, 591, 5383, 53053, 887, 478, 4250, 1854, 108849, 328, 79595, 461, 82, 26494, 11853, 11955, 484, 18020, 392, 18295, 290, 3316, 1811, 540, 448, 722, 1058, 1932, 392], 'attention_mask': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 'labels': [887, 623, 117601, 382, 5181, 656, 261, 23013, 1366, 81884, 24223, 1366, 114288, 326, 261, 42576, 7342, 887, 16344, 316, 478, 4250, 1854, 108849, 328, 79595, 461, 82, 26494, 11853, 1366, 18020, 104369, 306, 261, 12213, 977, 935, 23206, 1366, 1118, 1770, 2491, 316, 413, 96811, 328, 13266, 22306, 887, 46647, 81540, 277, 156169, 328, 12494, 14225, 1776, 13394, 290, 7880, 324, 472, 392, 1869, 13266, 22306, 326, 67448, 759, 12, 31, 108447, 392, 887, 124048, 28138, 328, 13688, 409, 3332, 19700, 484, 392, 37198, 13007, 392, 382, 18958, 656, 82275, 461, 82, 392, 151085, 2896, 392, 350, 220, 3204, 18, 1546, 887, 57499, 47290, 328, 290, 77447, 11628, 2927, 2905, 11223, 290, 7117, 316, 31807, 887, 623, 9660, 328, 392, 37198, 13007, 392, 119705, 2846, 3316, 887, 1225, 8895, 37238, 1078, 18020, 16054, 1232, 39802, 316, 2304, 1277, 1335, 20119, 813, 484, 1023, 665, 679, 3316, 887, 17081, 290, 99926, 1366, 501, 37818, 6370, 712, 392, 69449, 2308, 10120, 1632, 461, 82, 717, 44154, 820, 6214, 813, 581, 665, 1520, 12418, 3047, 820, 2545, 1879, 98046, 3508, 668, 2966, 21528, 395, 481, 820, 42236, 402, 2344, 328, 481, 820, 61463, 6772, 326, 842, 328, 481, 820, 24086, 357, 1761, 1412, 316, 621, 820, 9024, 461, 82, 1327, 2304, 1039, 20119, 1277, 392, 887, 793, 314, 314, 105997, 314, 314, 793, 392, 37198, 13007, 392, 132376, 8841, 7042, 591, 5383, 53053, 887, 478, 4250, 1854, 108849, 328, 79595, 461, 82, 26494, 11853, 11955, 484, 18020, 392, 18295, 290, 3316, 1811, 540, 448, 722, 1058, 1932, 392]}.
+04/12/2026 01:43:32 - INFO - run_clm - Sample 1624 of the training set: {'input_ids': [46, 1148, 2258, 1366, 382, 261, 108780, 1372, 54483, 306, 43693, 326, 1001, 328, 290, 1645, 3378, 59936, 55145, 160104, 306, 290, 2375, 887, 623, 2702, 673, 1577, 145709, 306, 290, 220, 994, 404, 14015, 656, 261, 34612, 328, 180401, 40495, 75436, 1354, 656, 290, 391, 2716, 288, 3375, 4605, 472, 261, 1534, 480, 673, 5542, 472, 7792, 77, 434, 759, 12, 31, 355, 7316, 324, 1366, 10915, 290, 392, 38570, 328, 290, 25445, 8559, 392, 887, 730, 220, 13486, 17, 480, 673, 4335, 656, 67169, 9839, 1366, 6789, 328, 19291, 9967, 1366, 316, 290, 81120, 68032, 278, 11605, 887, 1225, 28827, 306, 1043, 37597, 4609, 480, 18153, 306, 220, 12807, 16, 887, 1225, 10288, 5542, 472, 5790, 359, 334, 305, 461, 46, 1148, 2258, 4605, 290, 1308, 110662, 731, 9374, 1105, 11012, 673, 160438, 306, 290, 220, 858, 404, 14015, 887, 793, 623, 68032, 278, 586, 409, 10377, 107327, 290, 54483, 306, 290, 220, 13486, 15, 82, 326, 1504, 11684, 656, 220, 15607, 15, 1261, 448, 66227, 27435, 290, 54483, 887, 623, 2569, 23006, 261, 2086, 328, 160104, 4251, 290, 6761, 328, 290, 8269, 328, 19291, 9967, 1366, 261, 2608, 24303, 1934, 290, 8338, 108780, 973, 887, 110662, 731, 9374, 1105, 11012, 673, 6200, 290, 1645, 3378, 1366, 326, 60923, 472, 261, 6170, 328, 16507, 472, 1775, 472, 261, 13223, 3611, 887, 6311, 261, 3099, 15222, 328, 6282, 673, 68072, 306, 290, 220, 1311, 404, 14015, 1366, 110662, 731, 9374, 1105, 11012, 10288, 261, 60572, 2740, 54483, 887, 1328, 15222, 5371, 290, 25982, 9688, 326], 'attention_mask': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 'labels': [46, 1148, 2258, 1366, 382, 261, 108780, 1372, 54483, 306, 43693, 326, 1001, 328, 290, 1645, 3378, 59936, 55145, 160104, 306, 290, 2375, 887, 623, 2702, 673, 1577, 145709, 306, 290, 220, 994, 404, 14015, 656, 261, 34612, 328, 180401, 40495, 75436, 1354, 656, 290, 391, 2716, 288, 3375, 4605, 472, 261, 1534, 480, 673, 5542, 472, 7792, 77, 434, 759, 12, 31, 355, 7316, 324, 1366, 10915, 290, 392, 38570, 328, 290, 25445, 8559, 392, 887, 730, 220, 13486, 17, 480, 673, 4335, 656, 67169, 9839, 1366, 6789, 328, 19291, 9967, 1366, 316, 290, 81120, 68032, 278, 11605, 887, 1225, 28827, 306, 1043, 37597, 4609, 480, 18153, 306, 220, 12807, 16, 887, 1225, 10288, 5542, 472, 5790, 359, 334, 305, 461, 46, 1148, 2258, 4605, 290, 1308, 110662, 731, 9374, 1105, 11012, 673, 160438, 306, 290, 220, 858, 404, 14015, 887, 793, 623, 68032, 278, 586, 409, 10377, 107327, 290, 54483, 306, 290, 220, 13486, 15, 82, 326, 1504, 11684, 656, 220, 15607, 15, 1261, 448, 66227, 27435, 290, 54483, 887, 623, 2569, 23006, 261, 2086, 328, 160104, 4251, 290, 6761, 328, 290, 8269, 328, 19291, 9967, 1366, 261, 2608, 24303, 1934, 290, 8338, 108780, 973, 887, 110662, 731, 9374, 1105, 11012, 673, 6200, 290, 1645, 3378, 1366, 326, 60923, 472, 261, 6170, 328, 16507, 472, 1775, 472, 261, 13223, 3611, 887, 6311, 261, 3099, 15222, 328, 6282, 673, 68072, 306, 290, 220, 1311, 404, 14015, 1366, 110662, 731, 9374, 1105, 11012, 10288, 261, 60572, 2740, 54483, 887, 1328, 15222, 5371, 290, 25982, 9688, 326]}.
+04/12/2026 01:43:32 - INFO - run_clm - Sample 6448 of the training set: {'input_ids': [174407, 1366, 326, 1001, 1489, 17538, 39, 28221, 673, 12455, 1917, 656, 75185, 7342, 14744, 6452, 5862, 7541, 83, 174407, 887, 4569, 4856, 1366, 2284, 3455, 1187, 5443, 961, 26705, 80117, 1005, 9111, 326, 34248, 2395, 484, 290, 770, 4504, 328, 67886, 3954, 673, 8155, 316, 24540, 2569, 316, 46703, 1207, 123087, 887, 24283, 20820, 328, 21322, 5694, 72516, 451, 91533, 673, 10731, 32699, 656, 75934, 6039, 1187, 316, 3580, 2973, 29795, 326, 24463, 81, 1093, 53640, 1366, 1118, 42763, 2009, 328, 43553, 46703, 1207, 123087, 887, 793, 2160, 220, 2029, 7843, 1366, 451, 91533, 10288, 290, 10705, 59743, 328, 722, 60390, 39, 22103, 306, 29795, 326, 24463, 81, 1093, 53640, 1366, 1118, 7360, 601, 8383, 13136, 1366, 6136, 22228, 1366, 12721, 16507, 1366, 329, 6827, 1159, 396, 326, 10296, 887, 47912, 33374, 1504, 12812, 316, 4828, 483, 2617, 168277, 290, 60390, 39, 22103, 887, 92067, 59641, 1504, 12314, 540, 290, 27326, 316, 39847, 326, 49877, 1366, 326, 1062, 42085, 83096, 1504, 316, 413, 829, 77934, 326, 11311, 316, 13223, 22103, 887, 451, 91533, 18796, 448, 2569, 484, 10175, 290, 111599, 4609, 220, 17, 8170, 316, 14114, 316, 290, 22103, 887, 2160, 484, 2163, 1366, 1934, 290, 1258, 71, 21772, 3566, 26789, 1819, 316, 4475, 3350, 154121, 591, 8887, 277, 1366, 1258, 71, 21772, 3860, 261, 3175, 328, 290, 220, 21, 404, 176871, 316, 658, 366, 2081, 336, 4299, 316, 4158, 290, 1920, 6005, 328, 290, 220, 994, 404, 176871, 74857, 591, 2064, 26410, 514, 887, 30002, 1489, 17538, 39, 3693, 2498, 1366, 290, 3175, 328], 'attention_mask': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 'labels': [174407, 1366, 326, 1001, 1489, 17538, 39, 28221, 673, 12455, 1917, 656, 75185, 7342, 14744, 6452, 5862, 7541, 83, 174407, 887, 4569, 4856, 1366, 2284, 3455, 1187, 5443, 961, 26705, 80117, 1005, 9111, 326, 34248, 2395, 484, 290, 770, 4504, 328, 67886, 3954, 673, 8155, 316, 24540, 2569, 316, 46703, 1207, 123087, 887, 24283, 20820, 328, 21322, 5694, 72516, 451, 91533, 673, 10731, 32699, 656, 75934, 6039, 1187, 316, 3580, 2973, 29795, 326, 24463, 81, 1093, 53640, 1366, 1118, 42763, 2009, 328, 43553, 46703, 1207, 123087, 887, 793, 2160, 220, 2029, 7843, 1366, 451, 91533, 10288, 290, 10705, 59743, 328, 722, 60390, 39, 22103, 306, 29795, 326, 24463, 81, 1093, 53640, 1366, 1118, 7360, 601, 8383, 13136, 1366, 6136, 22228, 1366, 12721, 16507, 1366, 329, 6827, 1159, 396, 326, 10296, 887, 47912, 33374, 1504, 12812, 316, 4828, 483, 2617, 168277, 290, 60390, 39, 22103, 887, 92067, 59641, 1504, 12314, 540, 290, 27326, 316, 39847, 326, 49877, 1366, 326, 1062, 42085, 83096, 1504, 316, 413, 829, 77934, 326, 11311, 316, 13223, 22103, 887, 451, 91533, 18796, 448, 2569, 484, 10175, 290, 111599, 4609, 220, 17, 8170, 316, 14114, 316, 290, 22103, 887, 2160, 484, 2163, 1366, 1934, 290, 1258, 71, 21772, 3566, 26789, 1819, 316, 4475, 3350, 154121, 591, 8887, 277, 1366, 1258, 71, 21772, 3860, 261, 3175, 328, 290, 220, 21, 404, 176871, 316, 658, 366, 2081, 336, 4299, 316, 4158, 290, 1920, 6005, 328, 290, 220, 994, 404, 176871, 74857, 591, 2064, 26410, 514, 887, 30002, 1489, 17538, 39, 3693, 2498, 1366, 290, 3175, 328]}.
+04/12/2026 01:43:34 - INFO - run_clm - ***** Running training *****
+04/12/2026 01:43:34 - INFO - run_clm -   Num examples = 9410
+04/12/2026 01:43:34 - INFO - run_clm -   Num Epochs = 1
+04/12/2026 01:43:34 - INFO - run_clm -   Instantaneous batch size per device = 1
+04/12/2026 01:43:34 - INFO - run_clm -   Total train batch size (w. parallel, distributed & accumulation) = 8
+04/12/2026 01:43:34 - INFO - run_clm -   Gradient Accumulation steps = 8
+04/12/2026 01:43:34 - INFO - run_clm -   Total optimization steps = 200
+  0%|          | 0/200 [00:00<?, ?it/s]Traceback (most recent call last):
+  File "/gpfs/projects/p32013/residual/OutEffHop/run_clm_oasis.py", line 1067, in <module>
+    main()
+  File "/gpfs/projects/p32013/residual/OutEffHop/run_clm_oasis.py", line 843, in main
+    optimizer.step()
+  File "/home/hlv8980/.conda/envs/outlier/lib/python3.9/site-packages/accelerate/optimizer.py", line 166, in step
+    self.scaler.step(self.optimizer, closure)
+  File "/home/hlv8980/.conda/envs/outlier/lib/python3.9/site-packages/torch/amp/grad_scaler.py", line 461, in step
+    retval = self._maybe_opt_step(optimizer, optimizer_state, *args, **kwargs)
+  File "/home/hlv8980/.conda/envs/outlier/lib/python3.9/site-packages/torch/amp/grad_scaler.py", line 356, in _maybe_opt_step
+    retval = optimizer.step(*args, **kwargs)
+  File "/home/hlv8980/.conda/envs/outlier/lib/python3.9/site-packages/accelerate/optimizer.py", line 211, in patched_step
+    return method(*args, **kwargs)
+  File "/home/hlv8980/.conda/envs/outlier/lib/python3.9/site-packages/torch/optim/lr_scheduler.py", line 124, in wrapper
+    return func.__get__(opt, opt.__class__)(*args, **kwargs)
+  File "/home/hlv8980/.conda/envs/outlier/lib/python3.9/site-packages/torch/optim/optimizer.py", line 485, in wrapper
+    out = func(*args, **kwargs)
+  File "/home/hlv8980/.conda/envs/outlier/lib/python3.9/site-packages/torch/optim/optimizer.py", line 79, in _use_grad
+    ret = func(self, *args, **kwargs)
+  File "/home/hlv8980/.conda/envs/outlier/lib/python3.9/site-packages/torch/optim/adam.py", line 246, in step
+    adam(
+  File "/home/hlv8980/.conda/envs/outlier/lib/python3.9/site-packages/torch/optim/optimizer.py", line 147, in maybe_fallback
+    return func(*args, **kwargs)
+  File "/home/hlv8980/.conda/envs/outlier/lib/python3.9/site-packages/torch/optim/adam.py", line 933, in adam
+    func(
+  File "/home/hlv8980/.conda/envs/outlier/lib/python3.9/site-packages/torch/optim/adam.py", line 757, in _multi_tensor_adam
+    exp_avg_sq_sqrt = torch._foreach_sqrt(device_exp_avg_sqs)
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 192.00 MiB. GPU 0 has a total capacity of 79.19 GiB of which 161.81 MiB is free. Including non-PyTorch memory, this process has 79.02 GiB memory in use. Of the allocated memory 77.04 GiB is allocated by PyTorch, and 1.25 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+  0%|          | 0/200 [00:13<?, ?it/s]
+Traceback (most recent call last):
+  File "/home/hlv8980/.conda/envs/outlier/lib/python3.9/runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/home/hlv8980/.conda/envs/outlier/lib/python3.9/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/home/hlv8980/.conda/envs/outlier/lib/python3.9/site-packages/accelerate/commands/launch.py", line 1245, in <module>
+    main()
+  File "/home/hlv8980/.conda/envs/outlier/lib/python3.9/site-packages/accelerate/commands/launch.py", line 1241, in main
+    launch_command(args)
+  File "/home/hlv8980/.conda/envs/outlier/lib/python3.9/site-packages/accelerate/commands/launch.py", line 1235, in launch_command
+    simple_launcher(args)
+  File "/home/hlv8980/.conda/envs/outlier/lib/python3.9/site-packages/accelerate/commands/launch.py", line 823, in simple_launcher
+    raise subprocess.CalledProcessError(returncode=process.returncode, cmd=cmd)
+subprocess.CalledProcessError: Command '['/home/hlv8980/.conda/envs/outlier/bin/python', 'run_clm_oasis.py', '--run_name', 'phi4_oasis_256_safe', '--pad_to_max_length', '--wd_LN_gamma', '--seed', '1000', '--dataset_setup', 'wikitext_2', '--preprocessing_num_workers', '8', '--data_cache_dir', '/scratch/hlv8980/.cache/residual/phi4_oasis/hf_data', '--model_cache_dir', '/scratch/hlv8980/.cache/residual/phi4_oasis/hf_cache', '--tokenizer_name', 'microsoft/Phi-4-mini-instruct', '--max_seq_length', '256', '--block_size', '256', '--learning_rate', '2e-4', '--lr_scheduler_type', 'linear', '--max_train_steps', '200', '--num_warmup_steps', '20', '--per_device_train_batch_size', '1', '--per_device_eval_batch_size', '1', '--gradient_accumulation_steps', '8', '--max_grad_norm', '1.0', '--weight_decay', '0.1', '--checkpointing_steps', '500', '--tb_scalar_log_interval', '500', '--tb_hist_log_interval', '500', '--model_name_or_path', 'microsoft/Phi-4-mini-instruct', '--attn_softmax', 'vanilla', '--attn_res_softmax_fn', 'vanilla', '--max_checkpointing_number', '2', '--output_dir', '/scratch/hlv8980/residual/output/oasis_phi4_5113580']' returned non-zero exit status 1.
