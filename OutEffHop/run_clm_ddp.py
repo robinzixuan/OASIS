@@ -199,6 +199,150 @@ def replace_attention_modules(model, args):
     return decoder_info
 
 
+def patch_model_forward_for_attn_res(model):
+    """Propagate ``layer_outputs_history`` through the decoder.
+
+    Per the OASIS paper, the experimental backbone for vanilla / OutEffHop / AoS
+    is the AttentionResidual (AttnRes) architecture; the four baselines differ
+    only in which softmax (token-level ``attn_softmax`` and/or depth-level
+    ``attn_res_softmax_fn``) is replaced with Softmax1.
+
+    The stock HuggingFace ``forward`` for Phi3/Llama/Qwen3 never passes
+    ``layer_outputs_history``, so the ``attn_res_sa`` / ``attn_res_mlp``
+    aggregator modules inside ``{Phi4,Llama,Qwen3}DecoderLayerExtra`` are
+    silently skipped, making OutEffHop and AoS architecturally identical.
+    This patch threads the per-layer history through, matching the loop in
+    ``run_clm_oasis.patch_model_forward_for_oasis`` minus null posteriors.
+
+    Idempotent on the same model instance.
+    """
+    from transformers.modeling_outputs import BaseModelOutputWithPast
+    from transformers.cache_utils import DynamicCache
+    from transformers.masking_utils import create_causal_mask
+
+    try:
+        from transformers.masking_utils import create_sliding_window_causal_mask
+    except ImportError:
+        create_sliding_window_causal_mask = None
+
+    base_model = model.model
+    if getattr(base_model.__class__, "_attn_res_history_patch", False):
+        logger.info("AttnRes forward patch already applied; skipping.")
+        return
+
+    model_type = getattr(model.config, "model_type", "")
+    if model_type not in {"phi3", "qwen3", "llama"}:
+        logger.warning(
+            "patch_model_forward_for_attn_res: model_type=%r not in {phi3, qwen3, llama}; "
+            "skipping AttnRes history propagation.",
+            model_type,
+        )
+        return
+
+    original_cls = base_model.__class__
+    is_qwen = hasattr(base_model, "has_sliding_layers")
+
+    class AttnResModelForward(original_cls):
+        _attn_res_history_patch = True
+
+        def forward(
+            self,
+            input_ids=None,
+            attention_mask=None,
+            position_ids=None,
+            past_key_values=None,
+            inputs_embeds=None,
+            cache_position=None,
+            use_cache=None,
+            **kwargs,
+        ):
+            if (input_ids is None) ^ (inputs_embeds is not None):
+                raise ValueError("You must specify exactly one of input_ids or inputs_embeds")
+
+            if inputs_embeds is None:
+                inputs_embeds = self.embed_tokens(input_ids)
+
+            if use_cache and past_key_values is None:
+                past_key_values = DynamicCache(config=self.config)
+
+            if cache_position is None:
+                past_seen_tokens = (
+                    past_key_values.get_seq_length() if past_key_values is not None else 0
+                )
+                cache_position = torch.arange(
+                    past_seen_tokens,
+                    past_seen_tokens + inputs_embeds.shape[1],
+                    device=inputs_embeds.device,
+                )
+
+            if position_ids is None:
+                position_ids = cache_position.unsqueeze(0)
+
+            mask_kwargs = {
+                "config": self.config,
+                "input_embeds": inputs_embeds,
+                "attention_mask": attention_mask,
+                "cache_position": cache_position,
+                "past_key_values": past_key_values,
+                "position_ids": position_ids,
+            }
+            causal_mask = create_causal_mask(**mask_kwargs)
+
+            if is_qwen:
+                causal_mask_mapping = {"full_attention": causal_mask}
+                if (
+                    getattr(self, "has_sliding_layers", False)
+                    and create_sliding_window_causal_mask is not None
+                ):
+                    causal_mask_mapping["sliding_attention"] = create_sliding_window_causal_mask(
+                        **mask_kwargs
+                    )
+            else:
+                causal_mask_mapping = None
+
+            hidden_states = inputs_embeds
+            position_embeddings = self.rotary_emb(hidden_states, position_ids=position_ids)
+
+            layer_outputs_history = [hidden_states]
+
+            for decoder_layer in self.layers[: self.config.num_hidden_layers]:
+                if causal_mask_mapping is not None:
+                    layer_mask = causal_mask_mapping[decoder_layer.attention_type]
+                else:
+                    layer_mask = causal_mask
+
+                result = decoder_layer(
+                    hidden_states,
+                    attention_mask=layer_mask,
+                    position_ids=position_ids,
+                    past_key_values=past_key_values,
+                    cache_position=cache_position,
+                    position_embeddings=position_embeddings,
+                    layer_outputs_history=layer_outputs_history,
+                    **kwargs,
+                )
+                if isinstance(result, tuple):
+                    if len(result) == 2:
+                        hidden_states, layer_outputs_history = result
+                    else:
+                        hidden_states, layer_outputs_history, _null_hist = result
+                else:
+                    hidden_states = result
+
+            hidden_states = self.norm(hidden_states)
+            return BaseModelOutputWithPast(
+                last_hidden_state=hidden_states,
+                past_key_values=past_key_values,
+            )
+
+    base_model.__class__ = AttnResModelForward
+    logger.info(
+        "AttnRes: patched %s forward with layer_outputs_history (model_type=%s).",
+        original_cls.__name__,
+        model_type,
+    )
+
+
 def main():
     # rank          = int(os.environ["SLURM_PROCID"])
     # world_size    = int(os.environ["WORLD_SIZE"])
@@ -345,6 +489,12 @@ def main():
         model = AutoModelForCausalLM.from_config(config, **_from_config_extra)
 
     decoder_info = replace_attention_modules(model, args)
+
+    # AttnRes is the experimental backbone for vanilla / OutEffHop / AoS in the
+    # OASIS paper; without history propagation, attn_res_softmax_fn is dead code
+    # and OutEffHop / AoS are architecturally identical.
+    if decoder_info["arch"] in {"phi4", "llama", "qwen"}:
+        patch_model_forward_for_attn_res(model)
 
     if getattr(args, "gradient_checkpointing", False):
         if hasattr(model, "gradient_checkpointing_enable"):
