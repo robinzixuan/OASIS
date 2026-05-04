@@ -21,7 +21,7 @@
 #SBATCH --output=slurm_phi4_oasis_%j.out
 #SBATCH --error=slurm_phi4_oasis_%j.err
 #SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=onionzsy@umich.edu
+#SBATCH --mail-user=xxxx
 
 set -euo pipefail
 
