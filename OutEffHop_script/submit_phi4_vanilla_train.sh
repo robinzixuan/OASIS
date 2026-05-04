@@ -7,7 +7,7 @@
 #   sbatch /path/to/OASIS/OutEffHop_script/submit_phi4_vanilla_train.sh
 #===============================================================================
 
-#SBATCH -A p32013
+#SBATCH -A xxxx
 #SBATCH -p gengpu
 #SBATCH --gres=gpu:1
 #SBATCH -t 48:00:00

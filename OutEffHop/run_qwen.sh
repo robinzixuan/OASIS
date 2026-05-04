@@ -1,6 +1,6 @@
 #!/bin/bash
 module load cuda/12.6.2-gcc-12.4.0
-export HF_HOME="/scratch/hlv8980/.cache/"
+export HF_HOME="/scratch/xxxx/.cache/"
 export WANDB_PROJECT="residual"
 export WANDB_ENABLED="true"
 
@@ -27,8 +27,8 @@ export CUDA_VISIBLE_DEVICES=0
 --seed 1000 \
 --dataset_setup bookcorpus_and_wiki \
 --preprocessing_num_workers 10 \
---data_cache_dir /scratch/hlv8980/residual/.hf_data \
---model_cache_dir /scratch/hlv8980/residual/.hf_cache \
+--data_cache_dir /scratch/xxxx/residual/.hf_data \
+--model_cache_dir /scratch/xxxx/residual/.hf_cache \
 --model_type llama \
 --tokenizer_name meta-llama/Llama-3.2-1B \
 --max_seq_length 2048 \
@@ -49,8 +49,8 @@ export CUDA_VISIBLE_DEVICES=0
 --attn_softmax softmax1 \
 --attn_res_softmax_fn vanilla \
 --max_checkpointing_number 2 \
---output_dir /scratch/hlv8980/residual/output/outeffhop_llama3/
---resume_from_checkpoint /scratch/hlv8980/residual/output/outeffhop_llama3/checkpoints/checkpoint_2000
+--output_dir /scratch/xxxx/residual/output/outeffhop_llama3/
+--resume_from_checkpoint /scratch/xxxx/residual/output/outeffhop_llama3/checkpoints/checkpoint_2000
 
 # ~/.conda/envs/outlier/bin/python -m accelerate.commands.launch --config_file accelerate_configs/1gpu_fp16.yaml run_clm_ddp.py \
 # --pad_to_max_length \
@@ -62,8 +62,8 @@ export CUDA_VISIBLE_DEVICES=0
 # --seed 1000 \
 # --dataset_setup bookcorpus_and_wiki \
 # --preprocessing_num_workers 10 \
-# --data_cache_dir /scratch/hlv8980/residual/qwen/.hf_data \
-# --model_cache_dir /scratch/hlv8980/residual/qwen/.hf_cache \
+# --data_cache_dir /scratch/xxxx/residual/qwen/.hf_data \
+# --model_cache_dir /scratch/xxxx/residual/qwen/.hf_cache \
 # --model_type qwen3 \
 # --tokenizer_name Qwen/Qwen3-0.6B \
 # --max_seq_length 2048 \
@@ -83,7 +83,7 @@ export CUDA_VISIBLE_DEVICES=0
 # --model_name_or_path Qwen/Qwen3-0.6B \
 # --attn_softmax softmax1 \
 # --attn_res_softmax_fn softmax1 \
-# --output_dir /scratch/hlv8980/residual/output/softmax1_qwen3_0.6b \
-# --resume_from_checkpoint /scratch/hlv8980/residual/output/softmax1_qwen3_0.6b/checkpoints/checkpoint_25000
+# --output_dir /scratch/xxxx/residual/output/softmax1_qwen3_0.6b \
+# --resume_from_checkpoint /scratch/xxxx/residual/output/softmax1_qwen3_0.6b/checkpoints/checkpoint_25000
 
 
