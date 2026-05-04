@@ -1,6 +1,8 @@
 *.csv
 OutEffHop/output/
 OutEffHop/output_metrics/
+.cursor/
+tmp/
 *.json
 *.txt
 *.bin
