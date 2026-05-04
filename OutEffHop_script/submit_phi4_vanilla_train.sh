@@ -19,8 +19,7 @@
 #SBATCH --output=slurm_phi4_vanilla_%j.out
 #SBATCH --error=slurm_phi4_vanilla_%j.err
 #SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=onionzsy@umich.edu
-
+#SBATCH --mail-user=xxx
 set -euo pipefail
 
 #--------------- 用户配置（与 submit_phi4_oasis_train.sh 保持同名变量、同默认值）----
