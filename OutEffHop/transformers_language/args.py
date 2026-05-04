@@ -240,7 +240,7 @@ def parse_args():
     parser.add_argument(
         "--data_cache_dir",
         type=str,
-        default="/local/mnt/workspace/.hf_data",
+        default=".cache/hf_data",
         help="Where to store data.",
     )
     parser.add_argument(
@@ -267,7 +267,7 @@ def parse_args():
     parser.add_argument(
         "--model_cache_dir",
         type=str,
-        default="/local/mnt/workspace/.hf_cache",
+        default=".cache/hf_cache",
         help="Where to store models & tokenizers.",
     )
 

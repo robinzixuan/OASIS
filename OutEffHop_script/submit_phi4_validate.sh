@@ -24,7 +24,7 @@ set -euo pipefail
 
 #--------------- User config -------------------------------------------------
 PHI4_MODEL="${PHI4_MODEL:-microsoft/Phi-4-mini-instruct}"
-SCRATCH_ROOT="${SCRATCH_ROOT:-/scratch/${USER}/residual}"
+SCRATCH_ROOT="${SCRATCH_ROOT:-${PWD}/output}"
 DATASET_SETUP="${DATASET_SETUP:-wikitext_2}"
 BLOCK_SIZE="${BLOCK_SIZE:-512}"
 EVAL_BS="${EVAL_BS:-4}"
@@ -68,7 +68,8 @@ if [[ ${_CONDA_RC} -ne 0 ]]; then
   exit 1
 fi
 
-# Slurm ??????/var/spool/slurmd/...???? BASH_SOURCE ??????????cwd??if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
+# Resolve the repository root when Slurm runs the script from a spool directory.
+if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
   if [[ -d "${SLURM_SUBMIT_DIR}/OutEffHop" ]]; then
     REPO_ROOT="${SLURM_SUBMIT_DIR}"
   elif [[ -d "$(cd "${SLURM_SUBMIT_DIR}/.." && pwd)/OutEffHop" ]]; then

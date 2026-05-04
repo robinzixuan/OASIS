@@ -1,9 +1,9 @@
 #!/bin/bash
 #===============================================================================
-# Phi-4 文本模型 — run_clm_ddp（phi4_attention，非 OASIS）
+# Phi-4 text model: run_clm_ddp.py with phi4_attention, without OASIS.
 #
-# 与 submit_phi4_oasis_train.sh 使用同一套「可对齐」默认超参（见该文件顶部注释）。
-# 提交：
+# Uses defaults aligned with submit_phi4_oasis_train.sh.
+# Submit:
 #   sbatch /path/to/OASIS/OutEffHop_script/submit_phi4_vanilla_train.sh
 #===============================================================================
 
@@ -22,9 +22,9 @@
 #SBATCH --mail-user=xxx
 set -euo pipefail
 
-#--------------- 用户配置（与 submit_phi4_oasis_train.sh 保持同名变量、同默认值）----
+#--------------- User config -------------------------------------------------
 PHI4_MODEL="${PHI4_MODEL:-microsoft/Phi-4-mini-instruct}"
-SCRATCH_ROOT="${SCRATCH_ROOT:-/scratch/${USER}/residual}"
+SCRATCH_ROOT="${SCRATCH_ROOT:-${PWD}/output}"
 OUTPUT_DIR_NAME="${OUTPUT_DIR_NAME:-vanilla_phi4_${SLURM_JOB_ID:-local}}"
 DATASET_SETUP="${DATASET_SETUP:-wikitext_2}"
 

@@ -1,92 +1,31 @@
 #!/bin/bash
-module load cuda/12.6.2-gcc-12.4.0
-export HF_HOME="/scratch/xxxx/.cache/" 
-export WANDB_PROJECT="residual"
-export WANDB_ENABLED="true"
+set -euo pipefail
 
-source ~/.bashrc && conda activate outlier && which python && python -V
+if command -v module >/dev/null 2>&1; then
+  module load "${CUDA_MODULE:-cuda/12.6.2-gcc-12.4.0}" || true
+fi
 
-
-
+export HF_HOME="${HF_HOME:-${PWD}/.cache/huggingface}"
+export WANDB_PROJECT="${WANDB_PROJECT:-residual}"
+export WANDB_ENABLED="${WANDB_ENABLED:-false}"
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
-export CUDA_HOME=/software/cuda/cuda-12.1.0 
+export CUDA_HOME="${CUDA_HOME:-}"
 # export MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
 # export WORLD_SIZE=$(($SLURM_NNODES * $SLURM_NTASKS_PER_NODE))
 # echo "WORLD_SIZE="$WORLD_SIZE
 
-export HF_DATASETS_OFFLINE=1
+export HF_DATASETS_OFFLINE="${HF_DATASETS_OFFLINE:-0}"
 export PYTHONNOUSERSITE=1
-export CUDA_VISIBLE_DEVICES=0
-# ~/.conda/envs/outlier/bin/python -m accelerate.commands.launch --config_file accelerate_configs/1gpu_fp16.yaml run_clm_oasis.py \
-# --pad_to_max_length \
-# --wd_LN_gamma \
-# --with_tracking \
-# --report_to wandb \
-# --run_name test_oasis_llama3_1b \
-# --extra_tb_stats \
-# --seed 1000 \
-# --dataset_setup bookcorpus_and_wiki \
-# --preprocessing_num_workers 10 \
-# --data_cache_dir /scratch/xxxx/residual/.hf_data \
-# --model_cache_dir /scratch/xxxx/residual/.hf_cache \
-# --model_type llama \
-# --tokenizer_name meta-llama/Llama-3.2-1B \
-# --max_seq_length 2048 \
-# --block_size 512 \
-# --learning_rate 0.0004 \
-# --lr_scheduler_type linear \
-# --max_train_steps 100000 \
-# --num_warmup_steps 2000 \
-# --per_device_train_batch_size 6 \
-# --per_device_eval_batch_size 6 \
-# --gradient_accumulation_steps 32 \
-# --max_grad_norm 1.0 \
-# --weight_decay 0.1 \
-# --checkpointing_steps 500 \
-# --tb_scalar_log_interval 20000 \
-# --tb_hist_log_interval 40000 \
-# --model_name_or_path meta-llama/Llama-3.2-1B \
-# --attn_softmax softmax1 \
-# --attn_res_softmax_fn softmax1 \
-# --max_checkpointing_number 2 \
-# --output_dir /scratch/xxxx/residual/output/oasis_llama3 
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 
-# ~/.conda/envs/outlier/bin/python -m accelerate.commands.launch --config_file accelerate_configs/1gpu_fp16.yaml run_clm_oasis.py \
-# --pad_to_max_length \
-# --wd_LN_gamma \
-# --with_tracking \
-# --report_to wandb \
-# --run_name test_oasis_qwen3_0.6b \
-# --extra_tb_stats \
-# --seed 1000 \
-# --dataset_setup bookcorpus_and_wiki \
-# --preprocessing_num_workers 10 \
-# --data_cache_dir /scratch/xxxx/residual/qwen/.hf_data \
-# --model_cache_dir /scratch/xxxx/residual/qwen/.hf_cache \
-# --model_type qwen3 \
-# --tokenizer_name Qwen/Qwen3-0.6B \
-# --max_seq_length 2048 \
-# --block_size 512 \
-# --learning_rate 0.000001 \
-# --lr_scheduler_type linear \
-# --max_train_steps 100000 \
-# --num_warmup_steps 2000 \
-# --per_device_train_batch_size 3 \
-# --per_device_eval_batch_size 3 \
-# --gradient_accumulation_steps 16 \
-# --max_grad_norm 1.0 \
-# --weight_decay 0.1 \
-# --checkpointing_steps 5000 \
-# --tb_scalar_log_interval 10000 \
-# --tb_hist_log_interval 20000 \
-# --model_name_or_path Qwen/Qwen3-0.6B \
-# --attn_softmax softmax1 \
-# --attn_res_softmax_fn softmax1 \
-# --output_dir /scratch/xxxx/residual/output/oasis_qwen3_0.6b 
+PYTHON_BIN="${PYTHON_BIN:-python}"
+DATA_CACHE_DIR="${DATA_CACHE_DIR:-${PWD}/.cache/hf_data}"
+MODEL_CACHE_DIR="${MODEL_CACHE_DIR:-${PWD}/.cache/hf_cache}"
+MODEL_NAME_OR_PATH="${MODEL_NAME_OR_PATH:-Qwen/Qwen3-0.6B}"
+OUTPUT_DIR="${OUTPUT_DIR:-output_metrics/vanilla_qwen}"
 
-
-~/.conda/envs/outlier/bin/python -m accelerate.commands.launch --config_file accelerate_configs/1gpu_fp16.yaml validate_clm.py \
+"${PYTHON_BIN}" -m accelerate.commands.launch --config_file accelerate_configs/1gpu_fp16.yaml validate_clm.py \
 --quantize \
 --quant_setup fp32_head \
 --ranges_acts running_minmax \
@@ -101,7 +40,7 @@ export CUDA_VISIBLE_DEVICES=0
 --per_device_eval_batch_size 4 \
 --attn_softmax vanilla \
 --attn_res_softmax_fn vanilla \
---data_cache_dir /scratch/xxxx/residual/qwen/.hf_data \
---model_cache_dir /scratch/xxxx/residual/qwen/.hf_cache \
---model_name_or_path /scratch/xxxx/residual/output/vanilla_qwen3_0.6b/ \
---output_dir  output_metrics/vanilla_qwen
+--data_cache_dir "${DATA_CACHE_DIR}" \
+--model_cache_dir "${MODEL_CACHE_DIR}" \
+--model_name_or_path "${MODEL_NAME_OR_PATH}" \
+--output_dir "${OUTPUT_DIR}"

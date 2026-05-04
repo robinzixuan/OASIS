@@ -27,7 +27,7 @@ set -euo pipefail
 
 #--------------- User config -------------------------------------------------
 PHI4_MODEL="${PHI4_MODEL:-microsoft/Phi-4-mini-instruct}"
-SCRATCH_ROOT="${SCRATCH_ROOT:-/scratch/${USER}/residual}"
+SCRATCH_ROOT="${SCRATCH_ROOT:-${PWD}/output}"
 OUTPUT_DIR_NAME="${OUTPUT_DIR_NAME:-oasis_phi4_${SLURM_JOB_ID:-local}}"
 DATASET_SETUP="${DATASET_SETUP:-wikitext_2}"
 
