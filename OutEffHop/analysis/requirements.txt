@@ -1,0 +1,2 @@
+# Extra dependency for the default streaming output format.
+pyarrow>=12.0.0
