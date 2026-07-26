@@ -37,7 +37,16 @@ def eager_attention_forward(
     if attention_mask is not None:
         attn_weights = attn_weights + attention_mask
 
-    attn_weights = softmax_fn(attn_weights, dim=-1, dtype=torch.float32).to(query.dtype)
+    attn_weights = softmax_fn(attn_weights, dim=-1, dtype=torch.float32)
+
+    # Analysis-only observer used by the D.4 validation pipeline.  Capture the
+    # normalized float32 probabilities before the model-dtype cast, matching
+    # the observer exposed by phi4_oasis_attention.py.
+    d4_token_observer = getattr(module, "_d4_token_observer", None)
+    if d4_token_observer is not None:
+        d4_token_observer(attn_weights)
+
+    attn_weights = attn_weights.to(query.dtype)
     attn_weights = nn.functional.dropout(attn_weights, p=dropout, training=module.training)
     attn_output = torch.matmul(attn_weights, value_states)
     attn_output = attn_output.transpose(1, 2).contiguous()

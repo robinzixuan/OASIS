@@ -60,6 +60,13 @@ def eager_attention_forward(
     attn_weights = _apply_softmax_fn(attn_weights, softmax_fn, dim=-1)
     attn_weights = _renormalize_if_needed(attn_weights, dim=-1)
 
+    # D.4 uses normalized token probabilities.  Expose the exact float32
+    # Softmax result before it is cast back to the model dtype for value
+    # aggregation.  This observer is absent during ordinary training.
+    d4_token_observer = getattr(module, "_d4_token_observer", None)
+    if d4_token_observer is not None:
+        d4_token_observer(attn_weights)
+
     null_posterior = (1.0 - attn_weights.sum(dim=-1)).clamp(min=0.0)
 
     null_posterior = null_posterior.to(query.dtype)
@@ -194,6 +201,14 @@ class AttentionResidual(nn.Module):
 
         weights = _apply_softmax_fn(scores, self.attn_res_softmax_fn, dim=-1)
         weights = _renormalize_if_needed(weights, dim=-1)
+
+        # Analysis-only observer used by the D.4 validation pipeline.  Keeping
+        # this opt-in and outside the public return signature preserves the
+        # training/checkpoint interface while exposing the exact probabilities
+        # used by the aggregation below.
+        d4_observer = getattr(self, "_d4_observer", None)
+        if d4_observer is not None:
+            d4_observer(weights)
 
         aggregated = torch.einsum("btl,btld->btd", weights, stacked)
 
