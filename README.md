@@ -4,7 +4,7 @@
 # OASIS: Null-Aware Attention Residuals for Outlier-Efficient Large Language Models
 
 <!-- TODO: replace the paper link once available -->
-[![arXiv](https://img.shields.io/badge/arXiv-OASIS-ff0000.svg?style=for-the-badge)](#)  [![Github](https://img.shields.io/badge/OASIS-000000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/robinzixuan/OASIS)
+[![arXiv](https://img.shields.io/badge/arXiv-OASIS-ff0000.svg?style=for-the-badge)](https://arxiv.org/abs/2605.17887)  [![Github](https://img.shields.io/badge/OASIS-000000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/robinzixuan/OASIS)
 </div>
 
 
