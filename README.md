@@ -24,7 +24,7 @@ The repo contains:
 
 ## Contents
 
-- [OASIS](#oasis-null-aware-attention-residuals-for-outlier-efficient-large-language-models)
+- [OASIS](https://arxiv.org/abs/2605.17887)
   - [1. Introduction](#1-introduction)
   - [2. Environment setup](#2-environment-setup)
   - [3. Repository structure](#3-repository-structure)
