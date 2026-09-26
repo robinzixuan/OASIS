@@ -194,7 +194,16 @@ If you use OASIS in your work, please kindly cite our paper:
 **OASIS**
 
 ```
-TODO: add BibTeX once the paper is public.
+@inproceedings{luo2026attention,
+  title     = {Attention Sinks and Outliers in Attention Residuals},
+  author    = {Haozheng Luo and Haoran Dai and Shaoyang Zhang and
+               Xi Chen and Eric Hanchen Jiang and Yijiang Li and
+               Jingyuan Huang and Chenghao Qiu and Chenwei Xu and
+               Zhenyu Pan and Haotian Zhang and Binghui Wang and Yan Chen},
+  booktitle = {The Fortieth Annual Conference on Neural Information Processing Systems},
+  year      = {2026},
+  url       = {https://openreview.net/forum?id=yjVSLVS0Dh}
+}
 ```
 
 **OutEffHop**
@@ -214,3 +223,6 @@ We appreciate the following GitHub repos a lot for their valuable code and effor
 - Outlier-free Transformers (https://github.com/Qualcomm-AI-research/outlier-free-transformers)
 - GERM (https://github.com/MAGICS-LAB/GERM)
 - Hugging Face Transformers (https://github.com/huggingface/transformers)
+- FROST (https://github.com/robinzixuan/FROST)
+- hf-attention-normalizers (https://github.com/robinzixuan/hf-attention-normalizers)
+- Attention Residaul [https://github.com/kyegomez/attn_res]
