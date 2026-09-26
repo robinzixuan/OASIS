@@ -1,6 +1,6 @@
 *.csv
-OutEffHop/output/
-OutEffHop/output_metrics/
+source_code/output/
+source_code/output_metrics/
 *.json
 *.txt
 *.bin
@@ -9,12 +9,6 @@ OutEffHop/output_metrics/
 *.safetensors
 *.pt
 *.pth
-STanHop_time_seeries/results/
-STanHop_time_seeries/datasets/
-STanHop_time_seeries/checkpoints/
-OutEffHop/STanHop_outlier/results/
-OutEffHop/STanHop_outlier/datasets/
-OutEffHop/STanHop_outlier/checkpoints/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -36,7 +30,7 @@ lib/
 lib64/
 parts/
 sdist/
-OutEffHop/wandb/
+source_code/wandb/
 var/
 wheels/
 share/python-wheels/
